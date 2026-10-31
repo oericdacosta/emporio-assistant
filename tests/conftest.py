@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -32,3 +33,9 @@ def make_product() -> Callable[..., Product]:
         return Product(pid, f"Produto {pid}", category_id, Decimal(price), stock, status)
 
     return _make
+
+
+@pytest.fixture(scope="session")
+def data_dir() -> Path:
+    """Pasta com os CSVs reais do repositório."""
+    return Path(__file__).resolve().parents[1] / "data" / "raw"
