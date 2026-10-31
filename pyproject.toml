@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "emporio"
+version = "0.1.0"
+description = "Agente de atendimento da Empório da Música"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0,<10",
+    "pytest-cov>=7.0,<8",
+    "hypothesis>=6.170,<7",
+    "ruff>=0.17,<0.18",
+    "mypy>=2.4,<3",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/emporio"]
+
+[tool.uv]
+exclude-newer = "7 days"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
+markers = ["live: chama provedor real (exige chave de API); nunca roda no CI"]
+
+[tool.coverage.run]
+branch = true
+source = ["src/emporio"]
+omit = ["*/cli.py", "*/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError"]
