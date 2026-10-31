@@ -27,6 +27,9 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/emporio"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"data/raw" = "emporio/_data/raw"
+
 [tool.uv]
 exclude-newer = "7 days"
 
