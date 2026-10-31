@@ -1,11 +1,23 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime
 from decimal import Decimal
 
 import pytest
 
+from emporio.clock import TZ
 from emporio.domain.models import Product, ProductStatus
+
+
+@pytest.fixture
+def at() -> Callable[..., datetime]:
+    """Cria datetimes em America/Campo_Grande: ``at(2026, 3, 23, 9, 0)``."""
+
+    def _at(year: int, month: int, day: int, hour: int = 0, minute: int = 0) -> datetime:
+        return datetime(year, month, day, hour, minute, tzinfo=TZ)
+
+    return _at
 
 
 @pytest.fixture
