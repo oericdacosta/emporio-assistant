@@ -75,4 +75,4 @@ def test_end_of_input_leaves_the_conversation_with_exit_0(
     }
     result = emporio(env=env, cwd=tmp_path)  # stdin vazio: Ctrl-D logo de início
     assert result.returncode == 0
-    assert "enviadas à OpenAI" in result.stderr and "Até logo!" in result.stderr
+    assert "/ajuda" in result.stderr and "Até logo!" in result.stderr
