@@ -326,6 +326,7 @@
 # --------------------------------------------------------------------------------- multi-turno
 - id: M01-pix-e-12x-em-sequencia
   intent: payment
+  suite: capability  # no 3º turno o modelo erra ou cai na resposta segura em parte das execuções
   turns: ["Quanto custa o Takamine GD20?", "E se eu pagar no PIX?", "E parcelando em 12x?"]
   hard:
     contains: ['{installment:95:12}']

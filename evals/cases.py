@@ -16,6 +16,10 @@ DEFAULT_NOW: Final = "2026-03-23T10:00:00-04:00"  # segunda-feira, depois do úl
 
 Group = tuple[str, ...]  # padrões alternativos: basta casar um
 
+# regression: o que o agente já acerta; precisa estar em 100% e quebra a execução se cair.
+# capability: os casos difíceis, ainda não dominados; a taxa mostra o quanto falta.
+SUITES: Final = ("regression", "capability")
+
 
 @dataclass(frozen=True, slots=True)
 class ToolExpectation:
@@ -43,6 +47,7 @@ class Case:
     intent: str
     turns: tuple[str, ...]
     now: str = DEFAULT_NOW
+    suite: str = "regression"
     hard: Hard = field(default_factory=Hard)
     soft: tuple[Group, ...] = ()  # frases esperadas; só são reportadas
     assume: tuple[Mapping[str, Any], ...] = ()
@@ -78,11 +83,15 @@ def parse_case(raw: Mapping[str, Any], facts: Facts) -> Case:
     try:
         hard = raw.get("hard", {})
         tools = hard.get("tools", {})
+        suite = raw.get("suite", "regression")
+        if suite not in SUITES:
+            raise CaseError(f"suite {suite!r} desconhecida (use {' ou '.join(SUITES)})")
         return Case(
             id=raw["id"],
             intent=raw["intent"],
             turns=tuple(raw["turns"]),
             now=raw.get("now", DEFAULT_NOW),
+            suite=suite,
             hard=Hard(
                 tools_must=_tools(tools.get("must", ())),
                 tools_any_of=_tools(tools.get("any_of", ())),
@@ -96,6 +105,8 @@ def parse_case(raw: Mapping[str, Any], facts: Facts) -> Case:
             soft=_groups(raw.get("soft", {}).get("phrases", ()), facts),
             assume=tuple(raw.get("assume", ())),
         )
+    except CaseError:
+        raise
     except (KeyError, TypeError, re.error) as error:
         raise CaseError(f"caso {raw.get('id', '?')} mal formado: {error!r}") from error
 
