@@ -175,7 +175,7 @@ def test_return_verdicts(registry: ToolRegistry, ctx: ToolContext) -> None:
     verify(registry, ctx, 4, LUCAS)  # entregue; previsão de entrega em 22/12/2025
     expired = call(registry, ctx, "check_return_eligibility", order_id=4, reason="regret")["data"]
     assert expired["verdict"] == "not_eligible" and expired["basis"] == "estimated_delivery"
-    assert any("data prevista de entrega" in a for a in expired["assumptions"])
+    assert any("data prevista de entrega" in a for a in expired["warnings"])
 
     told = call(
         registry,
@@ -186,7 +186,7 @@ def test_return_verdicts(registry: ToolRegistry, ctx: ToolContext) -> None:
         received_on="2026-03-20",
     )["data"]
     assert told["verdict"] == "eligible" and told["deadline"] == "2026-03-27"
-    assert told["days_left"] == 4 and any("equipe confirma" in a for a in told["assumptions"])
+    assert told["days_left"] == 4 and any("equipe confirma" in a for a in told["warnings"])
 
 
 def test_return_for_an_order_not_yet_shipped(registry: ToolRegistry, ctx: ToolContext) -> None:
