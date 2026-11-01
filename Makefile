@@ -1,7 +1,10 @@
-.PHONY: install lint fmt type test cov eval eval-regress policies clean
+.PHONY: install chat lint fmt type test cov eval eval-regress policies clean
 
 install:
 	uv sync --locked
+
+chat:  # abre o chat; a chave, o modelo e o relógio vêm do .env
+	uv run emporio
 
 lint:
 	uv run ruff check .
