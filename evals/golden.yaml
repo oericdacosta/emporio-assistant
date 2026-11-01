@@ -223,8 +223,10 @@
       must:
         - {name: search_policy, args: {topics: [trocas_devolucoes]}}
     contains: ['venda final']
-    # os dados não marcam "venda final": o agente não afirma nem nega, encaminha para a equipe
-    forbidden: ['nao (sao|e|eh) elegiv', 'nao (e|eh) possivel trocar', 'sim,? (voce )?pode trocar', 'pode (sim )?trocar sim']
+    # os dados não marcam "venda final", então o agente não confirma que ESTE pedido pode ou não
+    # trocar. Citar a regra geral do manual ("venda final não é elegível") é correto e fica de fora
+    # do proibido: a reprovação antiga punia a resposta certa (relatório de 2026-11-01).
+    forbidden: ['nao (e|eh) possivel trocar', 'sim,? (voce )?pode trocar', 'pode (sim )?trocar sim']
   soft:
     phrases:
       - ['equipe', 'gerencia', 'confirmar']
