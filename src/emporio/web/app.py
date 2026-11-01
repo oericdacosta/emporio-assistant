@@ -23,6 +23,7 @@ from emporio.data.repository import CsvRepository, DataLoadError
 from emporio.identity import IdentityVerifier
 from emporio.paths import default_data_dir
 from emporio.web import logic, metrics
+from emporio.web.examples import examples_tab
 
 MODE_DEMO = "Data de demonstração (padrão: AGENT_NOW ou 2026-03-23 10:00)"
 MODE_REAL = "Agora (real)"
@@ -412,7 +413,11 @@ def main() -> None:
         text = sanitize(prompt)
 
     messages: list[dict[str, Any]] = s.setdefault("messages", [])
-    chat, *extra = st.tabs(["Conversa", "Métricas"] if s.get("evaluator_mode") else ["Conversa"])
+    chat, examples, *extra = st.tabs(
+        ["Conversa", "Exemplos", "Métricas"]
+        if s.get("evaluator_mode")
+        else ["Conversa", "Exemplos"]
+    )
     with chat:
         if not messages and not text and not s.get("last_error") and rt and data_ok:
             st.caption("Para começar, escolha um exemplo ou escreva abaixo:")
@@ -427,6 +432,8 @@ def main() -> None:
         if text and rt:
             s["last_error"] = None
             turn(rt, text, messages)
+    with examples:
+        examples_tab()
     for tab in extra:
         with tab:
             metrics_tab(rt, messages, tracing)
