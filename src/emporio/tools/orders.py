@@ -126,7 +126,8 @@ def check_return_eligibility_tool(ctx: ToolContext, args: ReturnParams) -> dict[
     assumptions = []
     if result.basis is Basis.ESTIMATED_DELIVERY:
         assumptions.append(
-            "A loja não registra a data real de recebimento: usei a data prevista de entrega."
+            "A loja não registra a data real de recebimento: usei a data prevista de entrega. "
+            "Avise o cliente disso e pergunte se recebeu em outro dia."
         )
     if result.basis is Basis.CUSTOMER_RECEIVED_ON:
         assumptions.append(
@@ -140,8 +141,8 @@ def check_return_eligibility_tool(ctx: ToolContext, args: ReturnParams) -> dict[
         "explanation": result.explanation,
         "deadline": result.deadline.isoformat() if result.deadline else None,
         "days_left": result.days_left,
-        "warnings": list(result.warnings),
-        "assumptions": assumptions,
+        # as ressalvas vão junto dos avisos, que o modelo repassa ao cliente
+        "warnings": [*assumptions, *result.warnings],
     }
 
 
