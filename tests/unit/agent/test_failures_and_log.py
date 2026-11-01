@@ -6,8 +6,8 @@ from datetime import datetime
 from pathlib import Path
 
 from emporio.agent.failures import describe
-from emporio.agent.loop import Outcome, ToolRecord, TurnResult
 from emporio.agent.turn_log import configure, failure_record, turn_record, write
+from emporio.agent.types import Outcome, ToolRecord, TurnResult
 from emporio.clock import TZ
 from emporio.errors import LLMError, ProviderFatal, ProviderUnavailable
 from emporio.llm.base import Message, Usage

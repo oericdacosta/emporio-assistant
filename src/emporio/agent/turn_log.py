@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Final
 
-from emporio.agent.loop import ToolRecord, TurnResult
+from emporio.agent.types import ToolRecord, TurnResult
 from emporio.errors import LLMError
 from emporio.privacy import redact
 

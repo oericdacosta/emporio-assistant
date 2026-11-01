@@ -7,7 +7,7 @@ O ``Ledger`` de um turno contém o que o sistema já "disse":
 A resposta candidata é varrida pelos mesmos padrões; o que não está no ledger é violação:
   * valores em R$ (``R$ 1.234,56``, ``1234 reais``, ``2 mil reais``);
   * percentuais (``18%``);  * parcelamentos (``12x``);  * códigos de rastreio.
-No loop do agente: violações -> 1 retry com ``correction_message`` -> ``FALLBACK_MESSAGE``.
+No grafo do agente (``graph.py``): violações -> 1 retry com ``correction_message`` -> ``FALLBACK_MESSAGE``.
 
 Contrato das tools (conferido por ``contract_violations`` em teste): todo campo ``*_brl`` é
 string ``"R$ x,xx"`` (``domain.pricing.brl``), todo ``*_percent`` é string ``"18%"`` e o plano de

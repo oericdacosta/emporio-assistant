@@ -8,8 +8,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from emporio.agent.loop import AgentConfig, ToolRecord
 from emporio.agent.session import Session
+from emporio.agent.types import AgentConfig, ToolRecord
 from emporio.app import build_agent
 from emporio.clock import FixedClock
 from emporio.data.policies import PolicyStore

@@ -9,8 +9,9 @@ from typing import Any
 
 from emporio.agent import turn_log
 from emporio.agent.failures import describe
-from emporio.agent.loop import Agent, TurnResult
+from emporio.agent.graph import Agent
 from emporio.agent.session import Session, SQLiteSessionStore, new_session_id
+from emporio.agent.types import TurnResult
 from emporio.cli import codes
 from emporio.cli.text import HELP, MAX_CHARS, UNEXPECTED_MESSAGE, sanitize, scrub
 from emporio.cli.ui import Ui

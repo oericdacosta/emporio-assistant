@@ -7,8 +7,8 @@ import os
 import sys
 from typing import Any, TextIO
 
-from emporio.agent.loop import Event, ToolFinished, ToolStarted, TurnResult
 from emporio.agent.turn_log import mask
+from emporio.agent.types import Event, ToolFinished, ToolStarted, TurnResult
 from emporio.cli.text import AGENT_NAME, TOOL_LABELS
 
 SUMMARY_CHARS = 280

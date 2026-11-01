@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Final
 
-from emporio.agent.loop import ToolRecord
+from emporio.agent.types import ToolRecord
 from evals.cases import Case, Group, ToolExpectation
 
 ROBOTIC: Final = ("Prezado", "Atenciosamente", "como modelo de linguagem", "como uma ia")
