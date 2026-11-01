@@ -24,6 +24,8 @@ from emporio.identity import IdentityVerifier
 from emporio.paths import default_data_dir
 from emporio.web import logic, metrics
 from emporio.web.examples import examples_tab
+from emporio.web.metrics_view import summary_section, turns_section
+from emporio.web.results import results_tab
 
 MODE_DEMO = "Data de demonstração (padrão: AGENT_NOW ou 2026-03-23 10:00)"
 MODE_REAL = "Agora (real)"
@@ -134,6 +136,10 @@ def refresh_metrics() -> None:
 
 def metrics_tab(rt: logic.Runtime | None, messages: list[dict[str, Any]], tracing: str) -> None:
     """Aba do modo avaliador. Nada aqui pode derrubar a conversa."""
+    st.info(
+        "Aqui aparecem as métricas das suas próprias conversas, lidas do seu LangSmith (precisa "
+        "de LANGSMITH_API_KEY no seu .env). Os resultados medidos pelo autor estão na aba Resultados."
+    )
     if tracing == "ativo":  # fica no topo, antes e depois do clique
         st.info(
             "Clique em **Atualizar** para ver os dados do LangSmith. Eles levam alguns segundos "
@@ -158,80 +164,12 @@ def metrics_tab(rt: logic.Runtime | None, messages: list[dict[str, Any]], tracin
         )
         details_section(messages)
         return
-    st.subheader("Turnos desta conversa")
-    if data["turns"]:
-        st.dataframe(metrics.table(data["turns"]), hide_index=True)
-    else:
-        st.caption("Nenhum turno enviado ao LangSmith ainda (o envio leva alguns segundos).")
+    turns_section(data["turns"])
     details_section(messages)
-    agg = data["period"]
-    st.subheader("Resumo do período")
-    st.caption(
-        f"Últimos {metrics.PERIOD_DAYS} dias, até {metrics.PERIOD_LIMIT} turnos, em todas as conversas."
+    summary_section(
+        data["period_rows"],
+        f"Últimos {metrics.PERIOD_DAYS} dias, até {metrics.PERIOD_LIMIT} turnos, em todas as conversas.",
     )
-    top = st.columns(3)
-    top[0].metric("Turnos", agg.turns)
-    top[1].metric(
-        "Tempo mediano",
-        metrics.fmt_seconds(agg.p50_s),
-        help="Metade dos turnos respondeu em menos tempo que isso (p50).",
-    )
-    top[2].metric(
-        "Tempo dos mais lentos",
-        metrics.fmt_seconds(agg.p95_s),
-        help="95% dos turnos respondeu em menos tempo que isso (p95).",
-    )
-    bottom = st.columns(3)
-    bottom[0].metric("Custo total", metrics.fmt_usd(agg.total_cost))
-    bottom[1].metric("Custo por turno", metrics.fmt_usd(metrics.cost_per_turn(agg)))
-    bottom[2].metric(
-        "Resposta segura",
-        metrics.fmt_pct(agg.fallback_rate),
-        help="Turnos em que a guarda barrou duas vezes e o cliente recebeu a resposta segura.",
-    )
-    q = metrics.quality(data["period_rows"])
-    guard = st.columns(3)
-    guard[0].metric(
-        "Corrigidas pela guarda",
-        metrics.fmt_pct(q.corrected_rate),
-        help="Turnos em que a guarda barrou a primeira resposta e o modelo se corrigiu.",
-    )
-    guard[1].metric(
-        "Guarda barrou",
-        metrics.fmt_pct(q.blocked_rate),
-        help="Turnos em que a guarda barrou ao menos uma resposta (corrigida ou não).",
-    )
-    guard[2].metric(
-        "Aprovação do cliente",
-        metrics.fmt_pct(q.approval),
-        help=f"Avaliações 👍 entre 👍 e 👎 dadas pelos clientes ({q.feedback_n} no período).",
-    )
-    use = st.columns(3)
-    use[0].metric(
-        "Erros de tool",
-        metrics.fmt_pct(q.tool_error_rate),
-        help="Consultas que voltaram com erro, entre todas as consultas feitas.",
-    )
-    use[1].metric(
-        "Consultas por turno",
-        metrics.fmt_num(q.tools_per_turn),
-        help="Média de consultas (tools) em cada turno.",
-    )
-    use[2].metric(
-        "Entrada vinda do cache",
-        metrics.fmt_pct(q.cache_share),
-        help="Parte dos tokens de entrada que o provedor reaproveitou do cache.",
-    )
-    st.subheader("Por tool")
-    if tools := metrics.by_tool(data["period_rows"]):
-        st.dataframe(tools, hide_index=True)
-    else:
-        st.caption("Nenhuma consulta no período.")
-    st.subheader("Por versão do prompt")
-    if versions := metrics.by_prompt(data["period_rows"]):
-        st.dataframe(versions, hide_index=True)
-    else:
-        st.caption("Nenhum turno no período.")
     if data["experiment"]:
         name, url = data["experiment"]
         st.caption(f"Último experimento de avaliação: [{name}]({url})" if url else name)
@@ -413,10 +351,10 @@ def main() -> None:
         text = sanitize(prompt)
 
     messages: list[dict[str, Any]] = s.setdefault("messages", [])
-    chat, examples, *extra = st.tabs(
-        ["Conversa", "Exemplos", "Métricas"]
+    chat, examples, results, *extra = st.tabs(
+        ["Conversa", "Exemplos", "Resultados", "Métricas"]
         if s.get("evaluator_mode")
-        else ["Conversa", "Exemplos"]
+        else ["Conversa", "Exemplos", "Resultados"]
     )
     with chat:
         if not messages and not text and not s.get("last_error") and rt and data_ok:
@@ -434,6 +372,8 @@ def main() -> None:
             turn(rt, text, messages)
     with examples:
         examples_tab()
+    with results:
+        results_tab()
     for tab in extra:
         with tab:
             metrics_tab(rt, messages, tracing)
