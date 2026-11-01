@@ -42,6 +42,7 @@ TOOL_LABELS: Final = {
     "search_products": "buscando no catálogo",
     "get_product": "consultando o produto",
     "calculate_payment_options": "calculando as condições de pagamento",
+    "calculate_cart_total": "somando o carrinho",
     "estimate_shipping": "vendo o frete",
     "get_store_info": "conferindo os dados da loja",
     "search_policy": "consultando as políticas da loja",

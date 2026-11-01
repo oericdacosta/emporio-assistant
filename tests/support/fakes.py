@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from itertools import count
 from typing import Any
 
+from emporio.agent.claims import Detection
 from emporio.llm.base import LLMResponse, Message, ToolCall, ToolChoice, ToolSpec, Usage
 
 _ids = count(1)
@@ -60,6 +61,24 @@ class FakeLLM:
 
     def assert_exhausted(self) -> None:
         assert not self._steps, f"sobraram {len(self._steps)} passos do roteiro"
+
+
+class FakeDetector:
+    """Detector de afirmações programado: devolve os veredictos na ordem (o último se repete)."""
+
+    def __init__(self, *verdicts: bool, usage: Usage = Usage(0, 0, 0)) -> None:  # noqa: B008
+        self._verdicts = list(verdicts) or [False]
+        self._usage = usage
+        self.calls: list[tuple[list[str], str]] = []
+        self.known: list[list[str]] = []  # os fatos confirmados que o detector recebeu
+
+    def detect(
+        self, recent_answers: Sequence[str], draft: str, known_facts: Sequence[str] = ()
+    ) -> Detection:
+        self.calls.append((list(recent_answers), draft))
+        self.known.append(list(known_facts))
+        verdict = self._verdicts.pop(0) if len(self._verdicts) > 1 else self._verdicts[0]
+        return Detection(verdict, self._usage)
 
 
 def say(text: str, usage: Usage = Usage(10, 5, 0)) -> LLMResponse:  # noqa: B008

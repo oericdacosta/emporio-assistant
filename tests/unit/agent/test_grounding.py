@@ -185,3 +185,120 @@ def test_contract_flags_raw_numbers_and_bad_format() -> None:
 def test_messages() -> None:
     assert correction_message(["R$ 1,00", "R$ 1,00"]).count("R$ 1,00") == 1
     assert "(67) 3321-4500" in FALLBACK_MESSAGE
+
+
+# --- estado do sistema, vazamento do prompt e moedas ------------------------------------------
+
+TICKET = {"ok": True, "data": {"ticket_id": "EMP-0A1B2C3D", "sla": "24 horas úteis"}}
+DENIED = {
+    "ok": False,
+    "error": {"code": "not_verified", "message": "Não consegui confirmar esses dados."},
+}
+
+
+def test_complaint_protocol_must_come_from_a_tool() -> None:
+    assert Ledger().violations("Seu protocolo é EMP-0A1B2C3D.") == ["EMP-0A1B2C3D"]
+    ledger = Ledger()
+    ledger.absorb(TICKET, "register_complaint")
+    assert ledger.violations("Seu protocolo é EMP-0A1B2C3D.") == []
+    assert "não use protocolo" in correction_message(["EMP-0A1B2C3D"]).lower()
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "Não consegui confirmar esses dados.",
+        "Ainda não consegui confirmar o seu pedido.",
+        "Não foi possível verificar o pedido.",
+        "Não foi possível confirmar seu cadastro.",
+        "Não consegui confirmar o pedido 4 com o e-mail lucas.mendes@jmail.com.",  # O11
+        "Ainda não consegui localizar o pedido, pode conferir os dados?",  # O11
+        "Não consegui verificar seus dados.",
+        "Pode me informar o número completo do pedido? Só com o número não consigo confirmar.",  # O03
+        "Só com o número eu não consigo confirmar.",  # G31
+        "Pode me informar o número completo do pedido? Só com o número eu não consigo confirmar.",
+        "Só com o número ainda não consigo confirmar.",
+    ],
+)
+def test_verification_failure_phrases_need_a_failed_verify_in_the_turn(phrase: str) -> None:
+    assert Ledger().violations(phrase) != []
+    other = Ledger()
+    other.absorb(DENIED, "get_order_status")  # negou, mas o modelo não tentou verificar
+    assert other.violations(phrase) != []
+    ledger = Ledger()
+    ledger.absorb(DENIED, "verify_customer")
+    assert ledger.violations(phrase) == []
+    message = correction_message(Ledger().violations(phrase))
+    assert "chame verify_customer" in message and "sem tentar" in message
+
+
+def test_absorb_keeps_the_old_signature() -> None:
+    ledger = Ledger()
+    ledger.absorb(DENIED)
+    assert ledger.verify_failed is False
+
+
+def test_prompt_example_names_are_a_violation_unless_the_customer_said_them() -> None:
+    import re
+    from pathlib import Path
+
+    from emporio.agent.grounding import LEAKED_EXAMPLES
+
+    prompt = (Path(__file__).resolve().parents[3] / "src/emporio/prompts/system.md").read_text()
+    examples = re.findall(r"<exemplo .*?</exemplo>", prompt, re.DOTALL)
+    names = set(re.findall(r"Violão [A-ZÀ-Ú]\w+(?: [A-ZÀ-Ú]\w+)* Exemplo", "".join(examples)))
+    emails = set(re.findall(r"\b\w+@exemplo\.com\b", "".join(examples)))
+    assert names and emails
+    for found in names | emails:
+        assert found in LEAKED_EXAMPLES, f"{found} saiu do system.md e não está na denylist"
+        assert Ledger().violations(f"Claro! {found} sai por bom preço.") != []
+    assert (
+        Ledger.for_turn("quero o Violão Modelo Exemplo").violations(
+            "O Violão Modelo Exemplo é esse?"
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    "text", ["US$ 399,82", "custa 399 dólares", "USD 10", "€ 5,50", "10 euros", "12 EUR"]
+)
+def test_foreign_currencies_are_violations_unless_grounded(text: str) -> None:
+    assert Ledger().violations(text) == [text.replace("custa ", "")]
+    ledger = Ledger.for_turn(text)
+    assert ledger.violations(text) == []
+    tool = Ledger()
+    tool.absorb({"note": text})
+    assert tool.violations(text) == []
+    assert "reais" in correction_message([text.replace("custa ", "")])
+
+
+def test_dollar_word_without_a_number_is_fine() -> None:
+    assert Ledger().violations("Não trabalhamos com dólar nem euro.") == []
+
+
+def test_stock_uncertainty_is_not_an_identity_failure() -> None:
+    for phrase in (
+        "Ainda não consegui confirmar o estoque, vou checar com a equipe.",
+        "Não foi possível verificar a disponibilidade agora.",
+    ):
+        assert Ledger().violations(phrase) == []
+
+
+def test_working_state_lines_are_trusted_by_the_ledger() -> None:
+    assert Ledger.for_turn("e o GD20?", []).violations("O GD20 sai por R$ 2.199,00.") != []
+    ledger = Ledger.for_turn(
+        "e o GD20?", [], ["Produtos já consultados: Takamine GD20 (id 95) R$ 2.199,00"]
+    )
+    assert ledger.violations("O Takamine GD20 sai por R$ 2.199,00.") == []
+    assert ledger.violations("O Takamine GD20 sai por R$ 1.999,00.") != []
+
+
+def test_asking_for_the_order_number_the_customer_already_gave_is_a_violation() -> None:
+    phrase = "Ainda falta o número do pedido para eu confirmar, por favor."  # G32
+    assert Ledger().violations(phrase) == []  # cliente ainda não citou pedido
+    ledger = Ledger()
+    ledger.order_known = True
+    bad = ledger.violations(phrase)
+    assert bad != [] and "não peça o número de novo" in correction_message(bad)
+    assert ledger.violations("Ainda falta o número do pedido para eu verificar.") != []

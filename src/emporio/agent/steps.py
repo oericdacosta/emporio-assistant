@@ -15,6 +15,7 @@ from langsmith import traceable
 
 from emporio.agent.grounding import Ledger
 from emporio.agent.session import Session
+from emporio.agent.state import WorkingState
 from emporio.agent.types import (
     EventHook,
     Meter,
@@ -51,6 +52,7 @@ def run_tools[C](
     *,
     max_calls: int,
     on_event: EventHook | None,
+    working: WorkingState | None = None,
 ) -> None:
     """Executa as tools que o modelo pediu, em sequência, e anexa os resultados a ``messages``."""
     # o texto que acompanha as chamadas é descartado: só a resposta final é entregue
@@ -61,6 +63,14 @@ def run_tools[C](
                 "too_many_calls",
                 "chamadas demais de uma vez",
                 f"Faça no máximo {max_calls} chamadas por vez.",
+            )
+            seconds = 0.0
+        elif working is not None and working.tripped(call.name):
+            result = failure(
+                "repeated_failure",
+                f"{call.name} já falhou duas vezes pelo mesmo motivo",
+                "Essa chamada já falhou duas vezes pelo mesmo motivo: pare de tentar; explique "
+                "ao cliente o que falta ou ofereça encaminhar para a equipe.",
             )
             seconds = 0.0
         else:
@@ -75,7 +85,10 @@ def run_tools[C](
                 log.exception("falha inesperada na tool %s", call.name)
                 result = failure("internal_error", "a consulta falhou por um problema nosso")
             seconds = time.perf_counter() - began
-        ledger.absorb(result)
+        ledger.absorb(result, call.name)
+        meter.tool_results.append((call.name, result))
+        if working is not None:
+            working.absorb(call.name, call.arguments, result)
         content = json.dumps(result, ensure_ascii=False, default=str)
         messages.append(Message("tool", content, tool_call_id=call.id))
         error: dict[str, Any] = result.get("error") or {}
@@ -118,4 +131,9 @@ def finish(
         trace_id=trace_id,
         guard_blocked=meter.guard_blocked,
         guard_blocks=tuple(meter.guard_blocks),
+        offers_removed=meter.offers_removed,
+        working_products=len(session.working.products),
+        route=meter.route,
+        no_evidence_gate=meter.no_evidence_gate,
+        detector_calls=meter.detector_calls,
     )

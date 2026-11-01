@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
 Role = Literal["system", "user", "assistant", "tool"]
-ToolChoice = Literal["auto", "none"]
+ToolChoice = Literal["auto", "none", "required"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,5 +60,5 @@ class LLMClient(Protocol):
         temperature: float = 0.2,
         max_tokens: int = 600,
     ) -> LLMResponse:
-        """``messages[0]`` é o prompt de sistema. ``tool_choice="none"`` proíbe chamar tools."""
+        """``messages[0]`` é o prompt de sistema. ``tool_choice="none"`` proíbe chamar tools; ``"required"`` obriga."""
         ...
