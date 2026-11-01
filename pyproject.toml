@@ -12,6 +12,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [
     "holidays>=0.107,<1",
+    "openai>=2,<3",
     "pydantic>=2.11,<3",
     "tzdata>=2026.1",
 ]
