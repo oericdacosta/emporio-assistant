@@ -25,7 +25,7 @@ from emporio.domain.hours import store_status
 from emporio.errors import ConfigError, ProviderFatal
 from emporio.llm.factory import make_llm
 from emporio.paths import default_data_dir
-from evals.cases import DEFAULT_NOW, CaseError, load_cases
+from evals.cases import DEFAULT_NOW, SUITES, CaseError, load_cases
 from evals.facts import FactError, Facts
 from evals.report import Meta, Prices, pass_map, render, render_json
 from evals.runner import CaseReport, run_suite
@@ -67,6 +67,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--model", help="modelo da OpenAI (padrão: LLM_MODEL)")
     parser.add_argument("--cases", type=Path, default=GOLDEN)
     parser.add_argument("--only", default="", help="só os casos cujo id começa com este texto")
+    parser.add_argument(
+        "--suite",
+        choices=(*SUITES, "all"),
+        default="all",
+        help="regression (tem de passar 100%%), capability (casos difíceis) ou all",
+    )
     parser.add_argument("--repeat", type=int, default=1, help="execuções por caso (o modelo varia)")
     parser.add_argument("--out", type=Path, default=REPORTS)
     parser.add_argument(
@@ -88,7 +94,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         data_dir = default_data_dir()
         repo, policies = load_data(data_dir)
         facts = Facts(repo)
-        cases = [c for c in load_cases(args.cases, facts) if c.id.startswith(args.only)]
+        cases = [
+            c
+            for c in load_cases(args.cases, facts)
+            if c.id.startswith(args.only) and args.suite in ("all", c.suite)
+        ]
         stale = [
             f"{c.id}: {why}" for c in cases for a in c.assume if (why := facts.check_assumption(a))
         ]
@@ -130,6 +140,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     (args.out / "latest.json").write_text(render_json(reports), encoding="utf-8")
     passed = sum(r.passed for r in reports)
     print(f"\naprovados: {passed}/{len(reports)} | relatório: {path}", file=sys.stderr)
+
+    # o portão: um caso da regressão que reprova faz a execução sair com 1; os de capacidade só medem
+    broken = [r.case.id for r in reports if r.case.suite == "regression" and not r.passed]
+    if broken:
+        print(
+            f"REGRESSÃO: a suite regression tem de passar 100%: {', '.join(broken)}",
+            file=sys.stderr,
+        )
+        return 1
 
     if args.baseline:
         before = json.loads(args.baseline.read_text(encoding="utf-8"))
