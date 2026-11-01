@@ -11,9 +11,8 @@ from typing import Any, TextIO
 
 from emporio.agent.turn_log import mask
 from emporio.agent.types import Event, ToolFinished, ToolStarted, TurnResult
-from emporio.cli.text import AGENT_NAME, TOOL_LABELS
+from emporio.cli.text import AGENT_NAME, TOOL_LABELS, summarize
 
-SUMMARY_CHARS = 280
 MAX_WIDTH = 100  # largura máxima do texto do Téo em terminal largo
 MIN_WIDTH = 40
 
@@ -28,12 +27,6 @@ class Style:
 
     def __call__(self, code: str, text: str) -> str:
         return f"\x1b[{code}m{text}\x1b[0m" if self.on else text
-
-
-def summarize(result: dict[str, Any], limit: int = SUMMARY_CHARS) -> str:
-    body = result.get("data") if result.get("ok") else result.get("error")
-    text = json.dumps(body, ensure_ascii=False, separators=(",", ":"))
-    return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 class Ui:
