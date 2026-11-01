@@ -19,9 +19,11 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from emporio.agent.grounding import Ledger
+from emporio.agent.prompt import build_system_prompt
 from emporio.clock import SystemClock
 from emporio.data.policies import PolicyStore
 from emporio.data.repository import CsvRepository, default_data_dir
+from emporio.domain.hours import store_status
 from emporio.errors import ConfigError, EmporioError
 from emporio.llm.base import LLMClient, Message, ToolSpec, Usage
 from emporio.llm.factory import make_llm
@@ -30,12 +32,6 @@ from emporio.tools.deps import ToolContext
 from emporio.tools.registry import ToolRegistry
 
 MAX_ITERATIONS = 5
-SYSTEM = (
-    "Você é o Téo, atendente da Empório da Música, uma loja de instrumentos musicais em "
-    "Campo Grande. Responda em português, de forma curta e simpática. Nunca diga preço, "
-    "estoque, horário ou prazo sem consultar as ferramentas. Para dados de um pedido, peça ao "
-    "cliente o número do pedido e o e-mail ou os 4 últimos dígitos do telefone."
-)
 
 
 @dataclass
@@ -94,7 +90,9 @@ class Outcome:
 
 def ask(llm: LLMClient, registry: ToolRegistry, ctx: ToolContext, question: str) -> Outcome:
     tools = [ToolSpec(**spec) for spec in registry.specs()]
-    messages = [Message("system", SYSTEM), Message("user", question)]
+    now = ctx.clock.now()
+    system = build_system_prompt(now, store_status(now))
+    messages = [Message("system", system), Message("user", question)]
     ledger = Ledger.for_turn(question)
     outcome = Outcome()
     started = time.perf_counter()
