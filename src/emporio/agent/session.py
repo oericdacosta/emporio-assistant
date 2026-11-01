@@ -46,12 +46,24 @@ def default_history_path(env: Mapping[str, str] = os.environ) -> Path:
     return Path(env.get("EMPORIO_HISTORY_DB") or "history/sessions.db")
 
 
+def trim_window(messages: Sequence[Message]) -> list[Message]:
+    """As últimas ``WINDOW`` mensagens, começando numa fala do cliente."""
+    window = list(messages[-WINDOW:])
+    while window and window[0].role != "user":
+        window.pop(0)
+    return window
+
+
 @dataclass(slots=True)
 class Session:
     id: str
     history: list[Message] = field(default_factory=list)  # só texto de usuário e assistente
     guard: SessionGuard = field(default_factory=SessionGuard)  # só em memória, nunca gravado
     approved_answers: list[str] = field(default_factory=list)  # alimenta a guarda de fundamentação
+
+    def window(self) -> list[Message]:
+        """O trecho do histórico que vai ao modelo."""
+        return trim_window(self.history)
 
 
 class SQLiteSessionStore:
@@ -72,9 +84,7 @@ class SQLiteSessionStore:
             "SELECT role, content FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT ?",
             (session_id, WINDOW),
         ).fetchall()
-        history = [Message(role, content) for role, content in reversed(rows)]
-        while history and history[0].role != "user":
-            history.pop(0)
+        history = trim_window([Message(role, content) for role, content in reversed(rows)])
         return Session(
             session_id,
             history,
