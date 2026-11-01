@@ -57,7 +57,8 @@ files = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
-markers = ["live: chama provedor real (exige chave de API); nunca roda no CI"]
+pythonpath = ["tests"]
+markers = ["live: chama o provedor real (exige EMPORIO_LIVE=1 e OPENAI_API_KEY); nunca roda no CI"]
 
 [tool.coverage.run]
 branch = true

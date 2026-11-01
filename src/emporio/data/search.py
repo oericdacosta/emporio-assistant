@@ -31,6 +31,7 @@ MIN_SCORE: Final = 0.5
 EXTRA_WEIGHT: Final = 0.6  # categoria, apelidos e specs valem menos que o nome
 TYPO_CUTOFF: Final = 0.75
 TIE_TOLERANCE: Final = 1e-6
+UNAVAILABLE_LIMIT: Final = 3
 
 SortOrder = Literal["relevance", "price_asc", "price_desc"]
 
@@ -110,6 +111,8 @@ class SearchResult:
     total_matches: int
     candidates: tuple[SearchHit, ...] = ()  # empate no topo: o agente pergunta qual
     unknown_category: bool = False
+    # indisponíveis que casam com a busca melhor do que qualquer item disponível
+    unavailable: tuple[SearchHit, ...] = ()
 
 
 class _Index:
@@ -232,7 +235,38 @@ def search_products(
         total_matches=len(ranked),
         candidates=_tied_candidates(ranked) if _tokens(query) and sort == "relevance" else (),
         unknown_category=unknown,
+        unavailable=_better_but_unavailable(repo, query, ranked, category, min_price, max_price)
+        if only_available
+        else (),
     )
+
+
+def _better_but_unavailable(
+    repo: CsvRepository,
+    query: str,
+    available: list[SearchHit],
+    category: str | None,
+    min_price: Decimal | int | None,
+    max_price: Decimal | int | None,
+) -> tuple[SearchHit, ...]:
+    """Produtos fora de venda que casam com o texto melhor do que tudo que está à venda.
+
+    Sem isso, perguntar por um modelo esgotado parece perguntar por um modelo que não existe."""
+    if not _tokens(query):
+        return ()
+    best = available[0].score if available else 0.0
+    everything = rank_products(
+        repo,
+        query,
+        category=category,
+        min_price=min_price,
+        max_price=max_price,
+        only_available=False,
+    )
+    better = [
+        h for h in everything if not is_sellable(h.product) and h.score > best + TIE_TOLERANCE
+    ]
+    return tuple(better[:UNAVAILABLE_LIMIT])
 
 
 def _tied_candidates(ranked: list[SearchHit]) -> tuple[SearchHit, ...]:

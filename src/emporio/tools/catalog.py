@@ -131,6 +131,19 @@ def search_products_tool(ctx: ToolContext, args: SearchProductsParams) -> dict[s
         )
     if result.candidates:
         data["candidates"] = _candidates(result.candidates)
+    if result.unavailable:
+        data["unavailable_matches"] = [
+            {
+                "product_id": h.product.id,
+                "name": h.product.name,
+                "availability": availability_label(h.product),
+            }
+            for h in result.unavailable
+        ]
+        data["unavailable_note"] = (
+            "O que o cliente procura existe no catálogo, mas não está à venda agora: diga isso "
+            "(indisponível, descontinuado ou em breve) e ofereça as alternativas da lista."
+        )
     return data
 
 
@@ -279,7 +292,8 @@ def tools(repo: CsvRepository) -> list[Tool[Any]]:
             "Lista produtos do catálogo com preço vigente e disponibilidade. USE para opções, "
             "faixa de preço, categoria ou marca. NÃO use para detalhar um item específico "
             "(use get_product). Se `total_matches` for 0, diga que não há no catálogo; não "
-            "invente. Se `not_shown` for maior que 0, há mais produtos do que os mostrados: "
+            "invente, a menos que venha `unavailable_matches`: aí o produto existe, só não está à "
+            "venda. Se `not_shown` for maior que 0, há mais produtos do que os mostrados: "
             "diga o total, não só a quantidade da lista. Se vier `candidates`, pergunte ao cliente qual dos produtos ele quer. "
             "Use only_available=false para citar item esgotado, descontinuado ou em breve.",
             SearchProductsParams,

@@ -49,6 +49,24 @@ def test_search_says_how_many_matches_were_not_shown(
     assert one["not_shown"] == 0 and "note" not in one
 
 
+def test_search_reports_a_sold_out_model_instead_of_hiding_it(
+    registry: ToolRegistry, ctx: ToolContext
+) -> None:
+    data = call(registry, ctx, "search_products", query="Giannini GF-3D")["data"]
+    assert data["unavailable_matches"] == [
+        {
+            "product_id": 96,
+            "name": "Giannini GF-3D Dreadnought Sunburst",
+            "availability": "out_of_stock",
+        }
+    ]
+    assert "não está à venda" in data["unavailable_note"]
+    assert 96 not in ids({"data": data})
+
+    listing = call(registry, ctx, "search_products", category="violoes")["data"]
+    assert "unavailable_matches" not in listing and "unavailable_note" not in listing
+
+
 def test_search_accepts_json_numbers_for_prices(registry: ToolRegistry, ctx: ToolContext) -> None:
     result = call(registry, ctx, "search_products", category="violoes", max_price_brl=999.0)
     assert result["data"]["total_matches"] == 12  # 999 inclui o Tagima TW-7
