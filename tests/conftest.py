@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import socket
 from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
@@ -56,8 +58,38 @@ def registry(repo: CsvRepository) -> ToolRegistry:
     return build_registry(repo)
 
 
+@pytest.fixture(scope="session")
+def policies(data_dir: Path) -> PolicyStore:
+    return PolicyStore.load(data_dir.parent)
+
+
 @pytest.fixture
 def ctx(repo: CsvRepository, data_dir: Path) -> ToolContext:
     """Contexto das tools com o relógio parado numa segunda-feira, 10h, com a loja aberta."""
     clock = FixedClock.parse("2026-03-23T10:00:00")
     return ToolContext(repo, clock, PolicyStore.load(data_dir.parent))
+
+
+LIVE_VARS = ("OPENAI_API_KEY", "LLM_MODEL")
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    live_ok = os.getenv("EMPORIO_LIVE") == "1" and bool(os.getenv("OPENAI_API_KEY"))
+    skip = pytest.mark.skip(reason="live: defina EMPORIO_LIVE=1, OPENAI_API_KEY e LLM_MODEL")
+    for item in items:
+        if "live" in item.keywords and not live_ok:
+            item.add_marker(skip)
+
+
+@pytest.fixture(autouse=True)
+def _hermetic(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Teste comum não toca a rede nem enxerga as chaves do desenvolvedor."""
+    if request.node.get_closest_marker("live"):
+        return
+    for name in LIVE_VARS:
+        monkeypatch.delenv(name, raising=False)
+
+    def blocked(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("rede bloqueada nos testes (use @pytest.mark.live)")
+
+    monkeypatch.setattr(socket.socket, "connect", blocked)
