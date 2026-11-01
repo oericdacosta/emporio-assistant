@@ -171,3 +171,121 @@ def test_payment_needs_exactly_one_source(registry: ToolRegistry, ctx: ToolConte
     both = call(registry, ctx, "calculate_payment_options", product_id=95, amount_brl=100)
     assert both["error"]["code"] == "invalid_arguments"
     assert call(registry, ctx, "calculate_payment_options", amount_brl=0)["ok"] is False
+
+
+def test_cart_total_uses_the_domain_rules(registry: ToolRegistry, ctx: ToolContext) -> None:
+    # 95: sem promoção (R$ 2.199,00); 121: em promoção (R$ 439,20)
+    items = [{"product_id": 95}, {"product_id": 121, "quantity": 2}]
+    data = call(registry, ctx, "calculate_cart_total", items=items)["data"]
+    assert [line["subtotal_brl"] for line in data["lines"]] == ["R$ 2.199,00", "R$ 878,40"]
+    assert data["lines"][1]["unit_price_brl"] == "R$ 439,20" and data["lines"][1]["quantity"] == 2
+    assert data["total_brl"] == "R$ 3.077,40"
+    assert data["pix_total_brl"] == "R$ 2.967,45"  # 5% só no GD20: 2.089,05 + 878,40
+    assert data["installments"][-1]["installments"] == data["max_installments"] == "12x"
+
+
+def test_cart_without_pix_when_everything_is_on_sale(
+    registry: ToolRegistry, ctx: ToolContext
+) -> None:
+    data = call(registry, ctx, "calculate_cart_total", items=[{"product_id": 121}])["data"]
+    assert data["pix_total_brl"] is None and data["total_brl"] == "R$ 439,20"
+
+
+def test_cart_resolves_names_and_rejects_bad_items(
+    registry: ToolRegistry, ctx: ToolContext
+) -> None:
+    ok = call(registry, ctx, "calculate_cart_total", items=[{"name": "gd20"}])
+    assert ok["data"]["lines"][0]["product_id"] == 95
+    missing = call(registry, ctx, "calculate_cart_total", items=[{"product_id": 9999}])
+    assert missing["error"]["code"] == "product_not_found"
+    assert call(registry, ctx, "calculate_cart_total", items=[])["error"]["code"] == (
+        "invalid_arguments"
+    )
+    both = call(registry, ctx, "calculate_cart_total", items=[{"product_id": 95, "name": "x"}])
+    assert both["error"]["code"] == "invalid_arguments"
+
+
+# --- proveniência do preço e busca que relaxa -------------------------------------------------
+
+
+def said(ctx: ToolContext, *texts: str) -> ToolContext:
+    from dataclasses import replace
+
+    return replace(ctx, user_texts=texts, user_text=texts[-1])
+
+
+@pytest.mark.parametrize(
+    ("fala", "args"),
+    [
+        ("Quais violões até R$1000?", {"max_price_brl": 1000}),
+        ("quero algo até R$ 1000", {"max_price_brl": 1000}),
+        ("entre 500 e 800 reais", {"min_price_brl": 500, "max_price_brl": 800}),
+        ("menos de 2 mil", {"max_price_brl": 2000}),
+        ("uns 2 mil", {"max_price_brl": 2000}),
+        ("até 1k", {"max_price_brl": 1000}),
+    ],
+)
+def test_a_price_limit_the_customer_said_is_accepted(
+    registry: ToolRegistry, ctx: ToolContext, fala: str, args: dict[str, Any]
+) -> None:
+    result = call(registry, said(ctx, fala), "search_products", category="violoes", **args)
+    assert result["ok"], result
+
+
+def test_an_invented_price_limit_is_refused_without_searching(
+    registry: ToolRegistry, ctx: ToolContext
+) -> None:
+    result = call(
+        registry,
+        said(ctx, "violão pra iniciante, barato, nylon"),
+        "search_products",
+        category="violoes",
+        max_price_brl=800,
+    )
+    assert result["error"]["code"] == "unsupported_filter"
+    assert "busque sem o filtro de preço" in result["error"]["hint"]
+    # sem falas do cliente (chamada direta) não há o que conferir
+    assert call(registry, ctx, "search_products", category="violoes", max_price_brl=800)["ok"]
+
+
+def test_real_case_cheap_nylon_guitar_for_beginners_sorts_by_price(
+    registry: ToolRegistry, ctx: ToolContext
+) -> None:
+    result = call(
+        registry, ctx, "search_products", query="violão pra iniciante, barato, nylon", limit=8
+    )
+    data = result["data"]
+    prices = [i["effective_price_brl"] for i in data["items"]]
+    assert data["total_matches"] >= 4 and data["sorted_by"] == "price_asc"
+    assert all("Nylon" in i["name"] or "C40" in i["name"] for i in data["items"][:2])
+    cents = [int(p.replace("R$ ", "").replace(".", "").replace(",", "")) for p in prices]
+    assert cents == sorted(cents) and "relaxed" not in data
+
+
+def test_the_model_sort_is_kept_when_the_query_says_cheap(
+    registry: ToolRegistry, ctx: ToolContext
+) -> None:
+    data = call(
+        registry, ctx, "search_products", query="violão barato", sort="price_desc", limit=8
+    )["data"]
+    assert "sorted_by" not in data
+
+
+def test_student_is_a_catalog_word_and_is_not_dropped(
+    registry: ToolRegistry, ctx: ToolContext
+) -> None:
+    data = call(registry, ctx, "search_products", query="Rozini Estudante")["data"]
+    assert "Estudante" in data["items"][0]["name"] and "relaxed" not in data
+
+
+def test_an_unknown_word_relaxes_inside_the_category_and_says_so(
+    registry: ToolRegistry, ctx: ToolContext
+) -> None:
+    data = call(registry, ctx, "search_products", query="violão zzxqw", category="violoes")["data"]
+    assert data["total_matches"] > 0 and data["relaxed"] == ["zzxqw"]
+    assert "mostrando o mais próximo" in data["note"]
+
+
+def test_a_category_without_items_stays_empty(registry: ToolRegistry, ctx: ToolContext) -> None:
+    data = call(registry, ctx, "search_products", query="saxofone clarinete")["data"]
+    assert data["total_matches"] == 0 and "relaxed" not in data

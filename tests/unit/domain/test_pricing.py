@@ -224,3 +224,11 @@ def test_pix_price_never_exceeds_list_price(table: Decimal, promo: int) -> None:
 def test_combined_payment_needs_a_total_above_2000() -> None:
     assert not combined_payment_allowed("2000")
     assert combined_payment_allowed("2000.01")
+
+
+def test_pix_subtotal_discounts_only_items_without_promotion() -> None:
+    plain, promo = price_for("1000"), price_for("1000", 20)
+    from emporio.domain.pricing import pix_subtotal
+
+    assert pix_subtotal([(plain, 2), (promo, 1)]) == Decimal("2700.00")  # 1.900,00 + 800,00
+    assert pix_subtotal([(promo, 3)]) == subtotal([(promo, 3)])

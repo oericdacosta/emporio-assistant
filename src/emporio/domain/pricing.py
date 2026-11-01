@@ -83,6 +83,21 @@ def subtotal(lines: Iterable[tuple[Price, int]]) -> Decimal:
     return money(sum((price.price * qty for price, qty in lines), Decimal(0)))
 
 
+def pix_subtotal(lines: Iterable[tuple[Price, int]]) -> Decimal:
+    """Total no PIX: 5% só sobre os itens sem promoção (sobre a tabela); item em promoção fica como está."""
+    return money(
+        sum(
+            (
+                price_for(price.list_price * qty).pix_price
+                if price.pix_discount_applied
+                else price.price * qty
+                for price, qty in lines
+            ),
+            Decimal(0),
+        )
+    )
+
+
 def combined_payment_allowed(total: Decimal | str | int) -> bool:
     """Combinar formas de pagamento (ex.: PIX + cartão) é permitido só acima de R$ 2.000,00."""
     return money(total) > COMBINED_PAYMENT_ABOVE
