@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import sys
 import traceback
 from collections.abc import Callable, Sequence
@@ -13,12 +14,12 @@ from emporio.agent.graph import Agent
 from emporio.agent.session import Session, SQLiteSessionStore, new_session_id
 from emporio.agent.types import TurnResult
 from emporio.cli import codes
-from emporio.cli.text import HELP, MAX_CHARS, UNEXPECTED_MESSAGE, sanitize, scrub
+from emporio.cli.text import COMMANDS, HELP, MAX_CHARS, UNEXPECTED_MESSAGE, sanitize, scrub
 from emporio.cli.ui import Ui
 from emporio.clock import Clock
 from emporio.errors import CassetteError, LLMError
 
-NOT_SAVED = "Turno não gravado."
+NOT_SAVED = "Turno não gravado; pode reenviar a mensagem."
 
 
 class Chat:
@@ -122,8 +123,17 @@ class Chat:
             ui.trace = not ui.trace
             ui.note(f"Trace: {'ligado' if ui.trace else 'desligado'}.")
         else:
-            ui.note(f"Comando desconhecido: {name}. Digite /ajuda.")
+            close = difflib.get_close_matches(name, COMMANDS, n=1, cutoff=0.75)
+            ui.note(
+                f"Comando desconhecido: {name}. "
+                + (f"Quis dizer {close[0]}?" if close else "Digite /ajuda.")
+            )
         return True
+
+    def goodbye(self) -> None:
+        self.ui.note("Até logo!")
+        if self._store and self.session.history:  # só vale retomar uma conversa que tem conversa
+            self.ui.note(f"Para retomar esta conversa: emporio --session {self.session.id}")
 
     # --- laços ---------------------------------------------------------------------------------
 
@@ -136,14 +146,15 @@ class Chat:
                 line = self._read_line(ui.prompt() if interactive else "")
             except EOFError:  # Ctrl-D
                 ui.say()
-                ui.note("Até logo!")
+                self.goodbye()
                 return codes.OK
             except KeyboardInterrupt:  # Ctrl-C no prompt: uma vez avisa, duas seguidas sai
                 interrupts += 1
                 if interrupts >= 2:
                     ui.say()
                     return codes.INTERRUPTED
-                ui.note("\n(Ctrl-C) Pressione de novo para sair, ou use /sair.")
+                ui.say()
+                ui.note("(Ctrl-C) Pressione de novo para sair, ou use /sair.")
                 continue
             interrupts = 0
             line = sanitize(line)
@@ -153,7 +164,7 @@ class Chat:
                 ui.echo(line)
             if line.startswith("/"):
                 if not self.command(line):
-                    ui.note("Até logo!")
+                    self.goodbye()
                     return codes.OK
             elif len(line) > MAX_CHARS:
                 ui.note(
