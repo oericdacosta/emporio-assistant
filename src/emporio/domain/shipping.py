@@ -14,13 +14,14 @@ from enum import StrEnum
 from typing import Final
 
 from emporio.domain.pricing import money
+from emporio.domain.rules import RULES
 
-FREE_SHIPPING_ABOVE: Final = Decimal("500")  # só acima disso é grátis
-FLAT_FEE: Final = Decimal("35")
+FREE_SHIPPING_ABOVE: Final = RULES.free_shipping_above  # só acima disso é grátis
+FLAT_FEE: Final = RULES.flat_fee
 LARGE_ITEM_CATEGORY_NAMES: Final = frozenset(
     {"baterias e percussao"}
 )  # nome da categoria, sem acento
-CARRIERS: Final = ("PAC 5-12 dias úteis", "SEDEX 2-5 dias úteis", "Jadlog .package 3-8 dias úteis")
+CARRIERS: Final = RULES.carriers
 
 
 class Zone(StrEnum):
@@ -58,9 +59,10 @@ def quote_shipping(
     key = normalize_text(city)
     if not key:
         raise ValueError("cidade é obrigatória")
-    if key == "campo grande":
+    if key == normalize_text(RULES.local_city):
         fee = Decimal(0) if money(subtotal) > FREE_SHIPPING_ABOVE else FLAT_FEE
-        return ShippingQuote(Zone.CAMPO_GRANDE, fee, "1 a 3 dias úteis, motoboy próprio")
+        low, high = RULES.local_delivery_business_days
+        return ShippingQuote(Zone.CAMPO_GRANDE, fee, f"{low} a {high} dias úteis, motoboy próprio")
     return ShippingQuote(
         Zone.OTHER,
         None,

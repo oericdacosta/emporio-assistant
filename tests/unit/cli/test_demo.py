@@ -9,8 +9,8 @@ from emporio.agent.session import Session
 from emporio.app import build_agent, load_data
 from emporio.cli import main
 from emporio.clock import FixedClock
-from emporio.data.repository import default_data_dir
 from emporio.llm.replay import RecordingLLM, build_cassette, save_cassette
+from emporio.paths import default_data_dir
 from support.fakes import FakeLLM, say, use
 
 NOW = "2026-03-23T10:00:00"

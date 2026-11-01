@@ -15,6 +15,8 @@ from emporio.clock import Clock
 from emporio.data.policies import PolicyStore
 from emporio.data.repository import CsvRepository, DataLoadError
 from emporio.domain.hours import store_status
+from emporio.domain.rules import verify_rules
+from emporio.errors import ConfigError
 from emporio.identity import IdentityVerifier
 from emporio.llm.base import LLMClient
 from emporio.tools import build_registry
@@ -29,6 +31,10 @@ def load_data(data_dir: Path) -> tuple[CsvRepository, PolicyStore]:
 def check_data(data_dir: Path) -> str:
     """Valida os dados do mesmo modo que a aplicação os carrega. Linha rejeitada é erro."""
     repo, policies = load_data(data_dir)
+    try:
+        verify_rules(data_dir.parent)
+    except ConfigError as exc:
+        raise DataLoadError(str(exc)) from exc
     rejected = repo.quality_report().rejected
     if rejected:
         raise DataLoadError(f"{len(rejected)} linha(s) rejeitada(s) nos CSVs de {data_dir}")

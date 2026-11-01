@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "source_sha256": "84553a542a70e4639549147510c427988b3073c7817fe9f8b4a6d5f3c9275e05",
+  "regret_days": 7,
+  "defect_exchange_days": 30,
+  "legal_warranty_days": 90,
+  "refund_business_days": 10,
+  "manufacturer_warranty_months": [6, 24],
+  "pix_discount_percent": 5,
+  "max_installments": 12,
+  "installment_tiers": [
+    {"up_to": 3, "min_installment": "50.00"},
+    {"up_to": 6, "min_installment": "80.00"},
+    {"up_to": 12, "min_installment": "100.00"}
+  ],
+  "combined_payment_above": "2000.00",
+  "free_shipping_above": "500.00",
+  "flat_fee": "35.00",
+  "local_city": "Campo Grande",
+  "local_delivery_business_days": [1, 3],
+  "carriers": ["PAC 5-12 dias úteis", "SEDEX 2-5 dias úteis", "Jadlog .package 3-8 dias úteis"],
+  "hours": [
+    {"weekdays": [0, 1, 2, 3, 4], "open": "09:00", "close": "18:00"},
+    {"weekdays": [5], "open": "09:00", "close": "13:00"}
+  ]
+}

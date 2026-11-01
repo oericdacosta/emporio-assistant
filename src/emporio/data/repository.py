@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import csv
 import json
-import os
 import re
 from collections import defaultdict
 from collections.abc import Callable, Iterator
@@ -30,6 +29,7 @@ from emporio.domain.models import (
     ProductStatus,
     Promotion,
 )
+from emporio.paths import default_data_dir
 
 T = TypeVar("T")
 
@@ -39,15 +39,6 @@ _FILES: Final = ("categories", "products", "promotions", "customers", "orders", 
 
 class DataLoadError(Exception):
     """Os dados não puderam ser carregados (pasta ou arquivo ausente)."""
-
-
-def default_data_dir() -> Path:
-    """Pasta com os CSVs: variável de ambiente, depois o repositório, depois o pacote instalado."""
-    if configured := os.environ.get("EMPORIO_DATA_DIR"):
-        return Path(configured)
-    here = Path(__file__).resolve()
-    checkout = here.parents[3] / "data" / "raw"
-    return checkout if checkout.is_dir() else here.parents[1] / "_data" / "raw"
 
 
 def _rows(path: Path) -> Iterator[tuple[int, dict[str, str]]]:

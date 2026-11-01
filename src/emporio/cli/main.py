@@ -20,10 +20,11 @@ from emporio.cli.demo import run_demo
 from emporio.cli.text import AGENT_NAME, EPILOG, format_moment
 from emporio.cli.ui import Ui
 from emporio.clock import Clock, FixedClock, SystemClock
-from emporio.data.repository import DataLoadError, default_data_dir
+from emporio.data.repository import DataLoadError
 from emporio.errors import CassetteError, ConfigError
 from emporio.llm.base import LLMClient
 from emporio.llm.factory import make_llm
+from emporio.paths import default_data_dir
 
 with contextlib.suppress(ImportError):  # setas e edição de linha; o histórico NÃO vai a disco
     import readline  # noqa: F401

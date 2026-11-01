@@ -38,6 +38,7 @@ packages = ["src/emporio"]
 "data/raw" = "emporio/_data/raw"
 "data/policies.md" = "emporio/_data/policies.md"
 "data/policies_notes.json" = "emporio/_data/policies_notes.json"
+"data/policy_rules.json" = "emporio/_data/policy_rules.json"
 
 [tool.uv]
 exclude-newer = "7 days"

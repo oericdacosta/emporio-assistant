@@ -15,7 +15,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Final, Self
 
-from emporio.data.repository import DataLoadError, default_data_dir
+from emporio.data.repository import DataLoadError
+from emporio.paths import default_data_dir
 
 MAX_TOPICS: Final = 3
 _SECTION: Final = re.compile(r"^## (\d+)\. (.+)$", re.MULTILINE)
