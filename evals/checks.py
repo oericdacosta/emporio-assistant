@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Final
 
-from emporio.agent.types import ToolRecord
+from emporio.agent.types import GuardBlock, ToolRecord
 from evals.cases import Case, Group, ToolExpectation
 
 ROBOTIC: Final = ("Prezado", "Atenciosamente", "como modelo de linguagem", "como uma ia")
@@ -39,6 +39,7 @@ class Conversation:
     tools: tuple[ToolRecord, ...] = ()
     fallback: bool = False  # alguma resposta foi trocada pela resposta segura
     guard_blocked: bool = False
+    guard_blocks: tuple[GuardBlock, ...] = ()  # o que a guarda barrou, com o rascunho
     error: str | None = None  # o provedor falhou
 
     @property

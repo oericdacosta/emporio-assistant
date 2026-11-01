@@ -8,7 +8,14 @@ import pytest
 from emporio.agent.graph import Agent
 from emporio.agent.grounding import FALLBACK_MESSAGE
 from emporio.agent.session import Session
-from emporio.agent.types import AgentConfig, Event, Outcome, ToolFinished, ToolStarted
+from emporio.agent.types import (
+    AgentConfig,
+    Event,
+    GuardBlock,
+    Outcome,
+    ToolFinished,
+    ToolStarted,
+)
 from emporio.errors import ProviderUnavailable
 from emporio.llm.base import Message, Usage
 from support.fakes import FakeLLM, StubToolbox, say, say_from_tool, use, use_many
@@ -76,6 +83,9 @@ def test_invented_price_is_corrected_with_one_retry() -> None:
 
     assert result.text == "O GD20 sai por R$ 2.199,00."
     assert result.outcome is Outcome.CORRECTED and result.guard_blocked
+    assert result.guard_blocks == (
+        GuardBlock("O GD20 sai por R$ 1.999,00.", ("R$ 1.999,00",)),
+    )  # o que foi barrado fica no resultado, para os evals explicarem
     retry_messages = llm.calls[2].messages
     assert retry_messages[-2] == Message("assistant", "O GD20 sai por R$ 1.999,00.")
     assert "R$ 1.999,00" in retry_messages[-1].content and retry_messages[-1].role == "user"
@@ -91,6 +101,7 @@ def test_persistent_invention_gets_the_safe_fallback() -> None:
     result = agent.run_turn(session, "quanto custa o gd20?")
 
     assert result.text == FALLBACK_MESSAGE and result.fallback and result.guard_blocked
+    assert [b.violations for b in result.guard_blocks] == [("R$ 1.999,00",), ("R$ 1.888,00",)]
     assert "R$" not in result.text
     assert session.history[-1] == Message("assistant", FALLBACK_MESSAGE)
     assert session.approved_answers == []  # o fallback não alimenta a guarda do próximo turno

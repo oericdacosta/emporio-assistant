@@ -33,6 +33,7 @@ from emporio.agent.types import (
     FORCE_ANSWER_MESSAGE,
     AgentConfig,
     EventHook,
+    GuardBlock,
     Meter,
     Outcome,
     Toolbox,
@@ -158,6 +159,8 @@ class Agent[C]:
             return {"verdict": "ok", "text": draft, "outcome": outcome}
         meter = state["meter"]
         meter.guard_blocked = meter.guard_blocked or bool(violations)
+        if violations:
+            meter.guard_blocks.append(GuardBlock(draft, tuple(dict.fromkeys(violations))))
         log.info(
             "resposta barrada", extra={"trace_id": state["trace_id"], "retry": not state["retried"]}
         )

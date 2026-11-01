@@ -134,7 +134,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     now = datetime.now()
     meta = Meta(llm.model, now, _commit(), _prompt_hash(), args.repeat, prices)
     args.out.mkdir(parents=True, exist_ok=True)
-    suffix = f"_{args.label}" if args.label else ""
+    # a suite entra no nome para uma rodada parcial não sobrescrever o relatório completo do dia
+    suffix = (f"_{args.suite}" if args.suite != "all" else "") + (
+        f"_{args.label}" if args.label else ""
+    )
     path = args.out / f"{now:%Y-%m-%d}_{llm.model.replace('/', '-')}{suffix}.md"
     path.write_text(render(reports, meta), encoding="utf-8")
     (args.out / "latest.json").write_text(render_json(reports), encoding="utf-8")

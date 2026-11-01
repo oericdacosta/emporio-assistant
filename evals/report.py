@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import statistics
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
+from emporio.agent.types import ToolRecord
 from emporio.llm.base import Usage
 from evals.runner import CaseReport
 
@@ -121,9 +123,22 @@ def render(reports: list[CaseReport], meta: Meta) -> str:
             lines += ["", f"**execução {number}**", ""]
             lines += [f"- HARD: {reason}" for reason in run.verdict.hard] or ["- HARD: ok"]
             lines += [f"- SOFT: {reason}" for reason in run.verdict.soft]
+            lines.append(f"- tools: {_calls(run.conversation.tools)}")
+            for block in run.conversation.guard_blocks:
+                lines.append(f"- guarda barrou {', '.join(block.violations)}: «{block.draft}»")
             for answer in run.conversation.answers[-1:]:
                 lines += ["", f"> {answer}"]
     return "\n".join(lines) + "\n"
+
+
+def _calls(tools: Sequence[ToolRecord]) -> str:
+    """Cada chamada com os argumentos e se deu certo: ``get_product({"name": "gd20"}) ✓``."""
+    shown = (
+        f"{r.name}({json.dumps(r.arguments, ensure_ascii=False)}) "
+        + ("✓" if r.ok else f"✗ {r.error_code}")
+        for r in tools
+    )
+    return " → ".join(shown) or "nenhuma"
 
 
 def _by_intent(reports: list[CaseReport], k: int) -> list[str]:
