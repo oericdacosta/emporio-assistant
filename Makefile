@@ -1,4 +1,4 @@
-.PHONY: install lint fmt type test cov policies clean
+.PHONY: install lint fmt type test cov eval eval-regress policies clean
 
 install:
 	uv sync --locked
@@ -19,6 +19,14 @@ test:
 
 cov:
 	uv run pytest -q --cov=emporio --cov-branch --cov-report=term-missing
+
+EVAL_REPEAT ?= 1
+
+eval:  # chama o modelo de verdade: custa tokens e não roda no CI
+	uv run python -m evals.run --repeat $(EVAL_REPEAT)
+
+eval-regress:  # compara com a referência antes de mexer em prompt ou modelo
+	uv run python -m evals.run --repeat 3 --baseline evals/reports/baseline.json
 
 policies:
 	uv run scripts/extract_policies.py data/raw/politicas_da_loja.pdf data/policies.md
