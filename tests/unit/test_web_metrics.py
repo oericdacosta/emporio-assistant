@@ -174,3 +174,21 @@ def test_feedback_stats_are_read_and_missing_means_no_votes() -> None:
     assert metrics.turn_row(run(2, 1)).feedback_n == 0  # sem o atributo
     assert "feedback_stats" in metrics.SELECT and metrics.fmt_num(1.44) == "1,4"
     assert metrics.fmt_num(None) == "-"
+
+
+def test_a_turn_survives_the_json_round_trip() -> None:
+    row = metrics.TurnRow(
+        started=datetime(2026, 11, 1, 12, 0, tzinfo=UTC),
+        outcome="answered",
+        latency_s=1.5,
+        input_tokens=10,
+        output_tokens=2,
+        cached_tokens=4,
+        cost=0.001,
+        tools=("get_product",),
+        guard_blocked=False,
+        trace_id="t1",
+        tool_errors=("get_product:not_found",),
+        prompt_hash="abc",
+    )
+    assert metrics.row_from_json(metrics.row_to_json(row)) == row

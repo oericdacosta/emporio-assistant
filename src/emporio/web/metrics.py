@@ -12,7 +12,7 @@ import math
 import os
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
@@ -110,6 +110,30 @@ def turn_row(run: Any) -> TurnRow:
         prompt_hash=str(meta.get("prompt_hash") or NO_VERSION),
         feedback_n=fb_n,
         feedback_up=fb_up,
+    )
+
+
+def row_to_json(row: TurnRow) -> dict[str, Any]:
+    """O turno como dicionário simples, para a foto exportada (``scripts/export_metrics.py``)."""
+    return {**asdict(row), "started": row.started.isoformat()}
+
+
+def row_from_json(data: Mapping[str, Any]) -> TurnRow:
+    return TurnRow(
+        started=datetime.fromisoformat(data["started"]),
+        outcome=data["outcome"],
+        latency_s=data["latency_s"],
+        input_tokens=data["input_tokens"],
+        output_tokens=data["output_tokens"],
+        cached_tokens=data["cached_tokens"],
+        cost=data["cost"],
+        tools=tuple(data["tools"]),
+        guard_blocked=data["guard_blocked"],
+        trace_id=data["trace_id"],
+        tool_errors=tuple(data["tool_errors"]),
+        prompt_hash=data["prompt_hash"],
+        feedback_n=data["feedback_n"],
+        feedback_up=data["feedback_up"],
     )
 
 
