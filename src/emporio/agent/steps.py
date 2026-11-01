@@ -103,4 +103,5 @@ def finish(
         seconds=time.perf_counter() - started,
         trace_id=trace_id,
         guard_blocked=meter.guard_blocked,
+        guard_blocks=tuple(meter.guard_blocks),
     )

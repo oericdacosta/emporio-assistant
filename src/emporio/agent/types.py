@@ -71,6 +71,14 @@ class ToolRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class GuardBlock:
+    """Uma resposta que a guarda barrou: o rascunho e os trechos sem origem nas tools."""
+
+    draft: str
+    violations: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class TurnResult:
     text: str
     outcome: Outcome
@@ -81,6 +89,7 @@ class TurnResult:
     seconds: float
     trace_id: str
     guard_blocked: bool  # a guarda barrou alguma resposta neste turno
+    guard_blocks: tuple[GuardBlock, ...] = ()  # o que foi barrado, para os evals explicarem
 
     @property
     def fallback(self) -> bool:
@@ -94,6 +103,7 @@ class Meter:
         self.input_tokens = self.output_tokens = self.cached_tokens = self.calls = 0
         self.tools: list[ToolRecord] = []
         self.guard_blocked = False
+        self.guard_blocks: list[GuardBlock] = []
 
     def add(self, response: LLMResponse) -> None:
         self.calls += 1
