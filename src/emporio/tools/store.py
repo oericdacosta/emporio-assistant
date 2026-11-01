@@ -13,12 +13,13 @@ from emporio.domain.shipping import (
     FLAT_FEE,
     FREE_SHIPPING_ABOVE,
     Zone,
+    is_foreign_destination,
     is_large_item,
     quote_shipping,
 )
 from emporio.tools.catalog import require_product
 from emporio.tools.deps import ToolContext
-from emporio.tools.registry import Money, Params, Tool
+from emporio.tools.registry import Money, Params, Tool, ToolError
 
 PHONES = (
     {"label": "Telefone", "number": store.PHONE},
@@ -56,6 +57,13 @@ class ShippingParams(Params):
 
 
 def estimate_shipping_tool(ctx: ToolContext, args: ShippingParams) -> dict[str, Any]:
+    if is_foreign_destination(args.city):
+        raise ToolError(
+            "unsupported_destination",
+            f"a loja só entrega no Brasil; '{args.city}' é destino no exterior",
+            "Não informe frete nem prazo: entrega internacional só com a equipe. "
+            "Ofereça encaminhar para a equipe.",
+        )
     large = False
     total = args.order_total_brl
     if args.product_id is not None:
