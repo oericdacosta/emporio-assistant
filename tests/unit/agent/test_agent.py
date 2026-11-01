@@ -5,16 +5,10 @@ from typing import Any
 
 import pytest
 
+from emporio.agent.graph import Agent
 from emporio.agent.grounding import FALLBACK_MESSAGE
-from emporio.agent.loop import (
-    Agent,
-    AgentConfig,
-    Event,
-    Outcome,
-    ToolFinished,
-    ToolStarted,
-)
 from emporio.agent.session import Session
+from emporio.agent.types import AgentConfig, Event, Outcome, ToolFinished, ToolStarted
 from emporio.errors import ProviderUnavailable
 from emporio.llm.base import Message, Usage
 from support.fakes import FakeLLM, StubToolbox, say, say_from_tool, use, use_many

@@ -6,7 +6,7 @@ from evals.cases import Case, Hard, ToolExpectation, parse_case
 from evals.checks import Conversation, check, norm
 from evals.facts import Facts
 
-from emporio.agent.loop import ToolRecord
+from emporio.agent.types import ToolRecord
 
 
 def tool(

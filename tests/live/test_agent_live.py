@@ -12,8 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from emporio.agent.loop import Agent, TurnResult
+from emporio.agent.graph import Agent
 from emporio.agent.session import Session
+from emporio.agent.types import TurnResult
 from emporio.app import build_agent
 from emporio.clock import FixedClock
 from emporio.data.policies import PolicyStore

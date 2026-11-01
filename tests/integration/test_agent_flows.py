@@ -9,8 +9,9 @@ from typing import Any
 
 import pytest
 
-from emporio.agent.loop import Agent, Outcome
+from emporio.agent.graph import Agent
 from emporio.agent.session import Session, SQLiteSessionStore, new_session_id
+from emporio.agent.types import Outcome
 from emporio.app import build_agent
 from emporio.clock import FixedClock
 from emporio.data.policies import PolicyStore

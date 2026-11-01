@@ -8,9 +8,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from emporio.agent.loop import Agent, AgentConfig
+from emporio.agent.graph import Agent
 from emporio.agent.prompt import build_system_prompt
 from emporio.agent.session import Session
+from emporio.agent.types import AgentConfig
 from emporio.clock import Clock
 from emporio.data.policies import PolicyStore
 from emporio.data.repository import CsvRepository, DataLoadError
