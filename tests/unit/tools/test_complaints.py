@@ -63,3 +63,41 @@ def test_verified_customer_is_found_by_order_and_keeps_no_contact(
 def test_summary_is_required_and_bounded(registry: ToolRegistry, logged: ToolContext) -> None:
     assert call(registry, logged, summary="", contact="a@b.com")["ok"] is False
     assert call(registry, logged, summary="x" * 501, contact="a@b.com")["ok"] is False
+
+
+def test_complaint_takes_the_contact_from_the_conversation(
+    registry: ToolRegistry, logged: ToolContext
+) -> None:
+    said = replace(
+        logged, user_texts=("meu email é velho@x.com", "pode me ligar no (67) 99999-1234", "ok")
+    )
+    result = call(registry, said, summary="Ukulele com defeito")
+    assert result["data"]["contact_source"] == "conversa"
+    assert lines(said)[0]["contact"] == "(67) 99999-1234"  # a fala mais recente primeiro
+
+
+def test_complaint_without_contact_anywhere_still_asks(
+    registry: ToolRegistry, logged: ToolContext
+) -> None:
+    said = replace(logged, user_texts=("meu ukulele veio com defeito",))
+    assert call(registry, said, summary="x")["error"]["code"] == "contact_needed"
+
+
+def test_same_contact_twice_returns_the_existing_ticket(
+    registry: ToolRegistry, logged: ToolContext
+) -> None:
+    first = call(registry, logged, summary="Teclado que não liga", contact="(67) 98888-7777")
+    again = call(registry, logged, summary="Teclado que não liga", contact="67 98888-7777")
+    assert again["data"]["ticket_id"] == first["data"]["ticket_id"]
+    assert again["data"]["already_registered"] is True and "note" in again["data"]
+    assert len(lines(logged)) == 1
+
+
+def test_a_clearly_new_reason_or_another_contact_makes_a_new_ticket(
+    registry: ToolRegistry, logged: ToolContext
+) -> None:
+    first = call(registry, logged, summary="Teclado que não liga", contact="a@b.com")
+    new_reason = call(registry, logged, summary="Além disso veio riscado", contact="a@b.com")
+    other_contact = call(registry, logged, summary="Teclado que não liga", contact="c@d.com")
+    tickets = {r["data"]["ticket_id"] for r in (first, new_reason, other_contact)}
+    assert len(tickets) == 3 and "already_registered" not in new_reason["data"]

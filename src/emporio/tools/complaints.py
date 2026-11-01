@@ -6,12 +6,14 @@ A gravação é local (um arquivo JSONL); o envio real para a gerência é simul
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Final
 from uuid import uuid4
 
 from pydantic import Field
 
-from emporio.privacy import redact
+from emporio.domain.complaint import complaint_terms
+from emporio.privacy import extract_contact, redact
 from emporio.tools.deps import ToolContext
 from emporio.tools.registry import Params, Tool, ToolError
 
@@ -28,12 +30,26 @@ class ComplaintParams(Params):
 
 def register_complaint_tool(ctx: ToolContext, args: ComplaintParams) -> dict[str, Any]:
     verified = ctx.session.customer_id is not None
-    if not verified and not args.contact:
+    contact, source = args.contact, None
+    if not verified and not contact and (contact := extract_contact(ctx.user_texts)):
+        source = "conversa"  # o cliente já deu o contato; o modelo não precisa repetir
+    if not verified and not contact:
         raise ToolError(
             "contact_needed",
             "sem um contato a equipe não consegue retornar",
             "Peça ao cliente um e-mail ou telefone e chame de novo.",
         )
+    key = re.sub(r"[\s().-]", "", (contact or f"cliente-{ctx.session.customer_id}").casefold())
+    if previous := ctx.session.complaints.get(key):
+        ticket_id, earlier = previous
+        if not complaint_terms(args.summary) - complaint_terms(earlier):
+            return {
+                "ticket_id": ticket_id,
+                "sla": SLA,
+                "already_registered": True,
+                "note": "Já existe protocolo para este contato nesta conversa; informe-o ao "
+                "cliente em vez de registrar de novo.",
+            }
     order = ctx.repo.order(args.order_id) if args.order_id and verified else None
     own_order = order.id if order and order.customer_id == ctx.session.customer_id else None
 
@@ -45,12 +61,16 @@ def register_complaint_tool(ctx: ToolContext, args: ComplaintParams) -> dict[str
         "order_id": own_order,
         "verified": verified,
         # cliente verificado é achado pelo pedido; o contato só vale para quem não passou
-        "contact": None if verified else args.contact,
+        "contact": None if verified else contact,
     }
     ctx.complaints_log.parent.mkdir(parents=True, exist_ok=True)
     with ctx.complaints_log.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-    return {"ticket_id": ticket, "sla": SLA}
+    ctx.session.complaints[key] = (ticket, args.summary)
+    data = {"ticket_id": ticket, "sla": SLA}
+    if source:
+        data["contact_source"] = source
+    return data
 
 
 def tools() -> list[Tool[Any]]:
