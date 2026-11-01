@@ -22,6 +22,7 @@ from emporio.domain.models import Product, ProductStatus, Promotion
 CENT: Final = Decimal("0.01")
 PIX_DISCOUNT: Final = Decimal("0.05")
 MAX_INSTALLMENTS: Final = 12
+COMBINED_PAYMENT_ABOVE: Final = Decimal("2000")  # PIX + cartão só acima disso
 
 # (até N parcelas, valor mínimo da parcela). 1x é sempre permitido.
 INSTALLMENT_TIERS: Final[tuple[tuple[int, Decimal], ...]] = (
@@ -83,6 +84,11 @@ def quote(product: Product, promotions: Iterable[Promotion] = ()) -> Price:
 def subtotal(lines: Iterable[tuple[Price, int]]) -> Decimal:
     """Subtotal do carrinho = preço vigente (pós-promoção, ANTES do PIX) x quantidade."""
     return money(sum((price.price * qty for price, qty in lines), Decimal(0)))
+
+
+def combined_payment_allowed(total: Decimal | str | int) -> bool:
+    """Combinar formas de pagamento (ex.: PIX + cartão) é permitido só acima de R$ 2.000,00."""
+    return money(total) > COMBINED_PAYMENT_ABOVE
 
 
 def min_installment(n: int) -> Decimal:

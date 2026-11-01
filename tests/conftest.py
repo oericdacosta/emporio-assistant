@@ -7,8 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from emporio.clock import TZ
+from emporio.clock import TZ, FixedClock
+from emporio.data.policies import PolicyStore
+from emporio.data.repository import CsvRepository
 from emporio.domain.models import Product, ProductStatus
+from emporio.tools import build_registry
+from emporio.tools.deps import ToolContext
+from emporio.tools.registry import ToolRegistry
 
 
 @pytest.fixture
@@ -39,3 +44,20 @@ def make_product() -> Callable[..., Product]:
 def data_dir() -> Path:
     """Pasta com os CSVs reais do repositório."""
     return Path(__file__).resolve().parents[1] / "data" / "raw"
+
+
+@pytest.fixture(scope="session")
+def repo(data_dir: Path) -> CsvRepository:
+    return CsvRepository.load(data_dir)
+
+
+@pytest.fixture(scope="session")
+def registry(repo: CsvRepository) -> ToolRegistry:
+    return build_registry(repo)
+
+
+@pytest.fixture
+def ctx(repo: CsvRepository, data_dir: Path) -> ToolContext:
+    """Contexto das tools com o relógio parado numa segunda-feira, 10h, com a loja aberta."""
+    clock = FixedClock.parse("2026-03-23T10:00:00")
+    return ToolContext(repo, clock, PolicyStore.load(data_dir.parent))
