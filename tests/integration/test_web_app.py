@@ -14,7 +14,7 @@ from streamlit.testing.v1 import AppTest  # noqa: E402
 
 from emporio import observability  # noqa: E402
 from emporio.errors import ProviderUnavailable  # noqa: E402
-from emporio.web import examples, logic, metrics  # noqa: E402
+from emporio.web import examples, logic, metrics, results  # noqa: E402
 from support.fakes import FakeLLM, say, use  # noqa: E402
 
 APP = str(Path(__file__).resolve().parents[2] / "src" / "emporio" / "web" / "app.py")
@@ -23,6 +23,7 @@ EXAMPLE = logic.EXAMPLES[2]  # "Que horas a loja abre?"
 
 @pytest.fixture(autouse=True)
 def sandbox(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(results, "SNAPSHOT", tmp_path / "sem-resultados.json")
     monkeypatch.setattr(examples, "EXAMPLES_DIR", tmp_path / "sem-exemplos")  # só o chat conta
     monkeypatch.chdir(tmp_path)  # history/ e logs/ ficam no tmp, e o .env real não é lido
     for name in ("OPENAI_API_KEY", "LLM_MODEL", "AGENT_NOW", "EMPORIO_HISTORY_DB"):
@@ -66,7 +67,7 @@ def test_example_click_shows_the_answer_and_tool_details(monkeypatch: pytest.Mon
     assert [m.name for m in at.chat_message] == ["user", "assistant"]
     assert "Abrimos às 9h." in texts(at)
     assert not any("Detalhes" in e.label for e in at.expander)  # o chat fica limpo
-    assert [t.label for t in at.tabs] == ["Conversa", "Exemplos"]
+    assert [t.label for t in at.tabs] == ["Conversa", "Exemplos", "Resultados"]
     assert not [b for b in at.main.button if b.label in logic.EXAMPLES]  # exemplos somem
 
 
@@ -134,7 +135,7 @@ class FakeRuns:
 
 def test_evaluator_mode_off_shows_only_the_chat_tab() -> None:
     at = start()
-    assert [t.label for t in at.tabs] == ["Conversa", "Exemplos"]
+    assert [t.label for t in at.tabs] == ["Conversa", "Exemplos", "Resultados"]
 
 
 def test_evaluator_mode_adds_the_metrics_tab_and_moves_the_details_there(
@@ -148,7 +149,7 @@ def test_evaluator_mode_adds_the_metrics_tab_and_moves_the_details_there(
     at.button(key=f"ex-{EXAMPLE}").click().run()
     at = evaluator_mode(at)
     assert not at.exception
-    assert [t.label for t in at.tabs] == ["Conversa", "Exemplos", "Métricas"]
+    assert [t.label for t in at.tabs] == ["Conversa", "Exemplos", "Resultados", "Métricas"]
     assert not fake.calls  # nada é lido do LangSmith antes do clique
     assert any("Clique em **Atualizar**" in i.value for i in at.info)
     at = refresh(at)
@@ -268,6 +269,29 @@ def test_the_examples_tab_shows_the_recorded_conversations(monkeypatch: pytest.M
     )
     at = start()
     assert not at.exception
-    assert [t.label for t in at.tabs][:2] == ["Conversa", "Exemplos"]
+    assert [t.label for t in at.tabs][:3] == ["Conversa", "Exemplos", "Resultados"]
     assert len(examples.load_examples()) >= 3
     assert any(e.label.startswith("Busca no catálogo") for e in at.expander)
+
+
+def test_the_results_tab_shows_the_exported_numbers(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        results,
+        "SNAPSHOT",
+        Path(__file__).resolve().parents[2] / "evals" / "reports" / "metrics_snapshot.json",
+    )
+    snapshot = results.load_snapshot()
+    assert snapshot is not None and snapshot["turns"]
+    at = start()
+    assert not at.exception
+    assert any(m.label == "Tempo mediano" for m in at.metric)  # as mesmas métricas da aba Métricas
+    subheaders = {h.value for h in at.subheader}
+    assert {"Resumo do período", "Por tool"} <= subheaders
+    assert not {"Turnos desta conversa", "Por versão do prompt", "Rodadas do golden"} & subheaders
+    labels = {m.label for m in at.metric}
+    assert not {"Resposta segura", "Aprovação do cliente"} & labels
+
+
+def test_a_missing_snapshot_is_not_an_error() -> None:
+    assert results.load_snapshot(Path("nao-existe.json")) is None
+    assert not start().exception
