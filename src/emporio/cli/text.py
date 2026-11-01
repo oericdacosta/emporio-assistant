@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from datetime import datetime
-from typing import Final
+from typing import Any, Final
 
 from emporio.cli import codes
 from emporio.domain.hours import weekday_pt
 
 AGENT_NAME: Final = "Téo"
 MAX_CHARS: Final = 1000
+
+PRIVACY: Final = (
+    "Privacidade: as mensagens que você digita são enviadas à OpenAI para gerar as respostas. "
+    "Não envie CPF nem dados de cartão."
+)
 
 HELP: Final = f"""Comandos (começam com /):
   /ajuda      mostra esta ajuda
@@ -23,7 +29,7 @@ Qualquer outra linha é enviada ao {AGENT_NAME} como mensagem do cliente (máx. 
 Para começar, pergunte, por exemplo:
   "Quais violões até R$ 1000?"   "Que horas a loja abre?"   "Quero devolver um pedido"
 Para falar de um pedido, informe o número dele e o e-mail ou os 4 últimos dígitos do telefone.
-Privacidade: as mensagens que você digita são enviadas à OpenAI para gerar as respostas. Não envie CPF nem dados de cartão."""
+{PRIVACY}"""
 
 COMMANDS: Final = ("/ajuda", "/novo", "/esquecer", "/trace", "/sair")
 EPILOG: Final = f"""exemplos:
@@ -65,3 +71,12 @@ def scrub(text: str, limit: int = 200) -> str:
 
 def format_moment(moment: datetime) -> str:
     return f"{weekday_pt(moment.date())}, {moment:%d/%m/%Y %H:%M}"
+
+
+SUMMARY_CHARS: Final = 280
+
+
+def summarize(result: dict[str, Any], limit: int = SUMMARY_CHARS) -> str:
+    body = result.get("data") if result.get("ok") else result.get("error")
+    text = json.dumps(body, ensure_ascii=False, separators=(",", ":"))
+    return text if len(text) <= limit else text[: limit - 1] + "…"

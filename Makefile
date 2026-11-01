@@ -1,10 +1,13 @@
-.PHONY: install chat lint fmt type test cov eval eval-regression eval-capability eval-regress policies clean
+.PHONY: install chat ui lint fmt type test cov eval eval-regression eval-capability eval-regress policies clean
 
 install:
 	uv sync --locked
 
 chat:  # abre o chat; a chave, o modelo e o relógio vêm do .env
 	uv run emporio
+
+ui:  # interface web; a chave, o modelo e o relógio vêm do .env
+	uv run streamlit run src/emporio/web/app.py
 
 lint:
 	uv run ruff check .
