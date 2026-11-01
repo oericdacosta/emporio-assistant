@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from emporio.agent.grounding import Ledger, contract_violations
 from emporio.tools.deps import ToolContext
 from emporio.tools.registry import ToolRegistry
 
@@ -102,6 +103,7 @@ def test_outputs_are_json_with_formatted_money(
     result = registry.call(tool, args, ctx)
     assert result["ok"] is True
     json.dumps(result)  # sem Decimal, datas nem objetos
+    assert contract_violations(result) == []
     for path, value in _walk(result):
         assert not isinstance(value, float), f"float em {path}"
         key = path.rsplit(".", 1)[-1].split("[")[0]
@@ -140,3 +142,20 @@ def test_no_product_id_is_hardcoded_in_the_source() -> None:
         if pattern.search(line)
     ]
     assert offenders == []
+
+
+def test_tool_results_feed_the_grounding_ledger(registry: ToolRegistry, ctx: ToolContext) -> None:
+    product = registry.call("get_product", {"name": "gd20"}, ctx)
+    payment = registry.call("calculate_payment_options", {"product_id": 95}, ctx)
+    registry.call("verify_customer", {"order_id": 8, "proof": "7821"}, ctx)
+    order = registry.call("get_order_status", {"order_id": 8}, ctx)
+    ledger = Ledger.for_turn("quanto custa o gd20 e cadê o pedido 8?")
+    for result in (product, payment, order):
+        ledger.absorb(result)
+
+    grounded = (
+        "O GD20 sai por R$ 2.199,00, ou R$ 2.089,05 no PIX. No cartão, 12x de R$ 183,25. "
+        "Seu pedido de R$ 349,90 está com o rastreio BRJL5544332BR."
+    )
+    assert ledger.violations(grounded) == []
+    assert ledger.violations("O GD20 sai por R$ 1.999,00 em 12x.") == ["R$ 1.999,00"]
