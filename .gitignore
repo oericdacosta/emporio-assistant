@@ -27,3 +27,4 @@ data/runtime/
 .idea/
 .vscode/
 .DS_Store
+evals/reports/latest.json
