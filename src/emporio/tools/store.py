@@ -21,9 +21,11 @@ from emporio.tools.registry import Money, Params, Tool
 
 NAME = "Empório da Música"
 ADDRESS = "Rua 14 de Maio, 3200 — Centro, Campo Grande - MS, 79202-333"
+PHONE = "(67) 3341-4444"
+WHATSAPP = "(67) 3321-4500"
 PHONES = (
-    {"label": "Telefone", "number": "(67) 3341-4444"},
-    {"label": "WhatsApp", "number": "(67) 3321-4500"},
+    {"label": "Telefone", "number": PHONE},
+    {"label": "WhatsApp", "number": WHATSAPP},
 )
 EMAIL = "contato@emporiodamusica.com.br"
 
