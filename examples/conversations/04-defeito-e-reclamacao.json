@@ -1,0 +1,46 @@
+{
+  "slug": "04-defeito-e-reclamacao",
+  "title": "Produto com defeito: regra da loja e registro de protocolo",
+  "kind": "Reclamação (não trivial)",
+  "note": "Acolhe, explica a regra de defeito e, como o cliente não tem o pedido à mão, registra a reclamação com um contato e informa o protocolo e o prazo de retorno.",
+  "now": "2026-03-23T10:00:00-04:00",
+  "model": "gpt-4.1-mini",
+  "recorded_on": "2026-11-01",
+  "commit": "77979f3",
+  "prompt_version": "26b9b13d76",
+  "turns": [
+    {
+      "user": "O ukulele que comprei chegou com defeito na tarraxa. Comprei faz uns 10 dias.",
+      "assistant": "Sinto muito pelo problema no ukulele. Produtos com defeito de fabricação podem ser trocados em até 30 dias corridos após a compra. Para eu ajudar, me passa o número do pedido e o e-mail do cadastro (ou os 4 últimos dígitos do telefone)?",
+      "tools": [
+        {
+          "name": "search_policy",
+          "arguments": {
+            "topics": [
+              "trocas_devolucoes"
+            ]
+          },
+          "ok": true
+        }
+      ],
+      "guard_blocked": false,
+      "fallback": false
+    },
+    {
+      "user": "Não lembro o número do pedido agora. Podem me ligar? Meu telefone é (67) 99123-4567",
+      "assistant": "Anotei seu contato para a equipe ligar e ajudar com o defeito no ukulele. Seu protocolo é EMP-7524697C, e eles retornam em até 24 horas úteis. Se lembrar do número do pedido, me avisa que agilizo aqui!",
+      "tools": [
+        {
+          "name": "register_complaint",
+          "arguments": {
+            "summary": "O ukulele que comprei chegou com defeito na tarraxa. Comprei faz uns 10 dias.",
+            "contact": "(67) 99123-4567"
+          },
+          "ok": true
+        }
+      ],
+      "guard_blocked": false,
+      "fallback": false
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "slug": "01-busca-com-contexto",
+  "title": "Busca no catálogo que continua na pergunta seguinte",
+  "kind": "Catálogo e pagamento",
+  "note": "Lista violões até R$ 1000 e responde às perguntas seguintes sobre a mesma lista: o agente lembra dos produtos e as parcelas são calculadas em código.",
+  "now": "2026-03-23T10:00:00-04:00",
+  "model": "gpt-4.1-mini",
+  "recorded_on": "2026-11-01",
+  "commit": "77979f3",
+  "prompt_version": "26b9b13d76",
+  "turns": [
+    {
+      "user": "Quais opções de violões vocês têm custando até R$1000?",
+      "assistant": "Temos 12 violões até R$ 1000, vou listar os 8 primeiros: Tagima Memphis AC-39 Nylon Natural por R$ 429,90, Rozini RC-104 Nylon Estudante por R$ 459,90, Shelby SN-100 Folk Aço Preto por R$ 549,00, Giannini GF-1R Aço Folk Sunburst por R$ 579,90, Yamaha C40 Nylon Natural por R$ 599,90, Giannini GN-15 Nylon Cedr Natural por R$ 689,00, Yamaha F310 Aço Natural por R$ 699,90 e Tagima Dallas Tuner Aço Natural por R$ 749,00. Quer ver mais ou filtrar por algum tipo específico? 🎸",
+      "tools": [
+        {
+          "name": "search_products",
+          "arguments": {
+            "category": "violoes",
+            "max_price_brl": 1000,
+            "only_available": true,
+            "sort": "price_asc",
+            "limit": 8
+          },
+          "ok": true
+        }
+      ],
+      "guard_blocked": false,
+      "fallback": false
+    },
+    {
+      "user": "Qual o mais barato deles?",
+      "assistant": "O mais barato é o Tagima Memphis AC-39 Nylon Natural, por R$ 429,90. Quer saber as condições de pagamento dele?",
+      "tools": [],
+      "guard_blocked": false,
+      "fallback": false
+    },
+    {
+      "user": "E se eu parcelar esse em 3x, quanto fica a parcela?",
+      "assistant": "No cartão, dá para parcelar o Tagima Memphis AC-39 em até 3x de R$ 143,30 sem juros. Quer que eu te passe o WhatsApp da loja para fechar?",
+      "tools": [
+        {
+          "name": "calculate_payment_options",
+          "arguments": {
+            "product_id": 83
+          },
+          "ok": true
+        }
+      ],
+      "guard_blocked": false,
+      "fallback": false
+    }
+  ]
+}
