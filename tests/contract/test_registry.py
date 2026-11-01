@@ -20,6 +20,10 @@ CANONICAL = frozenset(
         "estimate_shipping",
         "get_store_info",
         "search_policy",
+        "verify_customer",
+        "get_order_status",
+        "check_return_eligibility",
+        "register_complaint",
     }
 )
 MONEY = re.compile(r"^R\$ \d{1,3}(\.\d{3})*,\d{2}$")
@@ -49,9 +53,7 @@ def test_registry_has_the_canonical_tools(registry: ToolRegistry) -> None:
 def test_specs_are_plain_json_schemas(registry: ToolRegistry) -> None:
     for spec in registry.specs():
         json.dumps(spec)
-        assert spec["description"].startswith(
-            ("Lista", "Ficha", "Calcula", "Frete", "Endere", "Texto")
-        )
+        assert "USE" in spec["description"] or "NÃO use" in spec["description"]
         schema = spec["parameters"]
         assert schema["type"] == "object" and schema["additionalProperties"] is False
         assert "$ref" not in json.dumps(schema) and "title" not in schema

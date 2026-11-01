@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 from emporio.data.repository import CsvRepository
-from emporio.tools import catalog, policy, store
+from emporio.tools import catalog, complaints, orders, policy, store
 from emporio.tools.registry import ToolRegistry
 
 
 def build_registry(repo: CsvRepository) -> ToolRegistry:
     registry = ToolRegistry()
-    for tool in [*catalog.tools(repo), *store.tools(), *policy.tools()]:
+    for tool in [
+        *catalog.tools(repo),
+        *store.tools(),
+        *policy.tools(),
+        *orders.tools(),
+        *complaints.tools(),
+    ]:
         registry.register(tool)
     return registry
