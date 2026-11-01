@@ -13,12 +13,29 @@ from emporio.agent.prompt import build_system_prompt
 from emporio.agent.session import Session
 from emporio.clock import Clock
 from emporio.data.policies import PolicyStore
-from emporio.data.repository import CsvRepository
+from emporio.data.repository import CsvRepository, DataLoadError
 from emporio.domain.hours import store_status
 from emporio.identity import IdentityVerifier
 from emporio.llm.base import LLMClient
 from emporio.tools import build_registry
 from emporio.tools.deps import ToolContext
+
+
+def load_data(data_dir: Path) -> tuple[CsvRepository, PolicyStore]:
+    """Os CSVs e o manual de políticas (que fica ao lado da pasta dos CSVs)."""
+    return CsvRepository.load(data_dir), PolicyStore.load(data_dir.parent)
+
+
+def check_data(data_dir: Path) -> str:
+    """Valida os dados do mesmo modo que a aplicação os carrega. Linha rejeitada é erro."""
+    repo, policies = load_data(data_dir)
+    rejected = repo.quality_report().rejected
+    if rejected:
+        raise DataLoadError(f"{len(rejected)} linha(s) rejeitada(s) nos CSVs de {data_dir}")
+    return (
+        f"dados ok em {data_dir}: {len(repo.products())} produtos, {len(repo.customers())} clientes, "
+        f"{len(repo.orders())} pedidos, {len(policies.sections)} seções de política"
+    )
 
 
 def build_agent(

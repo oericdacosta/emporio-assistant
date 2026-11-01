@@ -72,6 +72,34 @@ def load_cassette(path: Path) -> dict[str, Any]:
     return data
 
 
+def build_cassette(
+    recorder: RecordingLLM,
+    runs: list[dict[str, Any]],
+    *,
+    recorded_on: str,
+    commit: str = "",
+    temperature: float = 0.0,
+) -> dict[str, Any]:
+    """Monta o cassete de uma gravação. Cada ``run`` é ``{"label", "now", "turns": [texto, ...]}``:
+    uma conversa com o relógio fixo em ``now``, na ordem em que foi gravada."""
+    return {
+        "meta": {
+            "model": recorder.model,
+            "prompt_sha256": recorder.prompt_sha,
+            "recorded_on": recorded_on,
+            "commit": commit,
+            "temperature": temperature,
+            "runs": runs,
+        },
+        "exchanges": recorder.exchanges,
+    }
+
+
+def save_cassette(path: Path, cassette: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(cassette, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 class RecordingLLM:
     """Envolve um cliente real e guarda cada resposta dele."""
 
@@ -114,6 +142,11 @@ class ReplayLLM:
         self._strict = strict_prompt
         self._expected_prompt: str = cassette["meta"]["prompt_sha256"]
         self.prompt_drift = False  # o prompt de sistema mudou desde a gravação
+
+    @property
+    def remaining(self) -> int:
+        """Respostas gravadas que o agente ainda não pediu."""
+        return len(self._exchanges) - self._next
 
     def chat(
         self,
