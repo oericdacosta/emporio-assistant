@@ -116,11 +116,19 @@ def search_products_tool(ctx: ToolContext, args: SearchProductsParams) -> dict[s
         filters["min_price_brl"] = brl(args.min_price_brl)
     if args.max_price_brl is not None:
         filters["max_price_brl"] = brl(args.max_price_brl)
+    shown = len(result.hits)
     data: dict[str, Any] = {
         "total_matches": result.total_matches,
+        "shown": shown,
+        "not_shown": result.total_matches - shown,
         "filters_applied": filters,
         "items": [_summary(ctx, h.product, h.price) for h in result.hits],
     }
+    if data["not_shown"]:
+        data["note"] = (
+            f"Há {result.total_matches} produtos ao todo e só {shown} foram mostrados: "
+            "diga o total e ofereça filtrar ou ver mais."
+        )
     if result.candidates:
         data["candidates"] = _candidates(result.candidates)
     return data
@@ -271,7 +279,8 @@ def tools(repo: CsvRepository) -> list[Tool[Any]]:
             "Lista produtos do catálogo com preço vigente e disponibilidade. USE para opções, "
             "faixa de preço, categoria ou marca. NÃO use para detalhar um item específico "
             "(use get_product). Se `total_matches` for 0, diga que não há no catálogo; não "
-            "invente. Se vier `candidates`, pergunte ao cliente qual dos produtos ele quer. "
+            "invente. Se `not_shown` for maior que 0, há mais produtos do que os mostrados: "
+            "diga o total, não só a quantidade da lista. Se vier `candidates`, pergunte ao cliente qual dos produtos ele quer. "
             "Use only_available=false para citar item esgotado, descontinuado ou em breve.",
             SearchProductsParams,
             search_products_tool,

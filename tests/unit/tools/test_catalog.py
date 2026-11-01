@@ -30,6 +30,25 @@ def test_guitars_up_to_1000_come_back_cheapest_first(
     assert first["effective_price_brl"] == "R$ 429,90" and first["availability"] == "in_stock"
 
 
+def test_search_says_how_many_matches_were_not_shown(
+    registry: ToolRegistry, ctx: ToolContext
+) -> None:
+    cut = call(registry, ctx, "search_products", category="violoes", max_price_brl=1000, limit=5)[
+        "data"
+    ]
+    assert (cut["total_matches"], cut["shown"], cut["not_shown"]) == (12, 5, 7)
+    assert "12 produtos ao todo" in cut["note"] and "só 5" in cut["note"]
+
+    whole = call(registry, ctx, "search_products", category="violoes", max_price_brl=1000, limit=8)[
+        "data"
+    ]
+    assert whole["not_shown"] == 4
+    empty = call(registry, ctx, "search_products", category="cordas_orquestrais")["data"]
+    assert (empty["shown"], empty["not_shown"]) == (0, 0) and "note" not in empty
+    one = call(registry, ctx, "search_products", query="gd20", limit=1)["data"]
+    assert one["not_shown"] == 0 and "note" not in one
+
+
 def test_search_accepts_json_numbers_for_prices(registry: ToolRegistry, ctx: ToolContext) -> None:
     result = call(registry, ctx, "search_products", category="violoes", max_price_brl=999.0)
     assert result["data"]["total_matches"] == 12  # 999 inclui o Tagima TW-7
