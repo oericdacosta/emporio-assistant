@@ -155,6 +155,21 @@ def test_main_writes_the_report_and_the_pass_map(
     }
 
 
+def test_a_label_keeps_two_reports_of_the_same_day_apart(
+    monkeypatch: pytest.MonkeyPatch, cli: Path
+) -> None:
+    monkeypatch.setattr(run_module, "make_llm", lambda model, env: passing_llm())
+    assert run_module.main(["--only", "G01", "--out", str(cli)]) == 0
+    monkeypatch.setattr(run_module, "make_llm", lambda model, env: passing_llm())
+    assert run_module.main(["--only", "G01", "--out", str(cli), "--label", "depois-do-ajuste"]) == 0
+    names = sorted(p.name for p in cli.glob("*.md"))
+    assert (
+        len(names) == 2
+        and names[0].endswith("_fake-model.md")
+        and names[1].endswith("_fake-model_depois-do-ajuste.md")
+    )
+
+
 def test_main_fails_on_regression_against_the_baseline(
     monkeypatch: pytest.MonkeyPatch, cli: Path
 ) -> None:

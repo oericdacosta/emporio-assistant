@@ -7,7 +7,7 @@ chamadas da API e o modelo varia); o CI só confere que o golden é coerente com
 make eval                      # 1 execução por caso
 make eval EVAL_REPEAT=3        # 3 por caso: um caso só passa se passar nas três
 make eval-regress              # compara com evals/reports/baseline.json antes de mexer em prompt ou modelo
-uv run python -m evals.run --only G1 --price-input 0.4 --price-cached 0.1 --price-output 1.6
+uv run python -m evals.run --only G1 --label depois-do-ajuste   # não sobrescreve o relatório do mesmo dia
 ```
 
 A chave vem de `OPENAI_API_KEY` e o modelo de `LLM_MODEL` (ou do arquivo `.env`). Os preços por
