@@ -10,6 +10,7 @@ from hypothesis import strategies as st
 from emporio.domain.models import Product, ProductStatus, Promotion
 from emporio.domain.pricing import (
     brl,
+    combined_payment_allowed,
     installment_allowed,
     installment_options,
     max_installments,
@@ -218,3 +219,8 @@ def test_installment_plans_are_consistent(total: Decimal) -> None:
 def test_pix_price_never_exceeds_list_price(table: Decimal, promo: int) -> None:
     assert price_for(table).pix_price <= money(table)
     assert price_for(table, promo).price <= money(table)
+
+
+def test_combined_payment_needs_a_total_above_2000() -> None:
+    assert not combined_payment_allowed("2000")
+    assert combined_payment_allowed("2000.01")
