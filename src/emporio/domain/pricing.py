@@ -18,18 +18,15 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Final
 
 from emporio.domain.models import Product, ProductStatus, Promotion
+from emporio.domain.rules import RULES
 
 CENT: Final = Decimal("0.01")
-PIX_DISCOUNT: Final = Decimal("0.05")
-MAX_INSTALLMENTS: Final = 12
-COMBINED_PAYMENT_ABOVE: Final = Decimal("2000")  # PIX + cartão só acima disso
+PIX_DISCOUNT: Final = Decimal(RULES.pix_discount_percent) / 100
+MAX_INSTALLMENTS: Final = RULES.max_installments
+COMBINED_PAYMENT_ABOVE: Final = RULES.combined_payment_above  # PIX + cartão só acima disso
 
 # (até N parcelas, valor mínimo da parcela). 1x é sempre permitido.
-INSTALLMENT_TIERS: Final[tuple[tuple[int, Decimal], ...]] = (
-    (3, Decimal("50")),
-    (6, Decimal("80")),
-    (12, Decimal("100")),
-)
+INSTALLMENT_TIERS: Final = tuple((t.up_to, t.min_installment) for t in RULES.installment_tiers)
 
 
 def money(value: Decimal | str | int) -> Decimal:

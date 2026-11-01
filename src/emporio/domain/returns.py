@@ -16,10 +16,13 @@ from enum import StrEnum
 from typing import Final
 
 from emporio.domain.models import OrderStatus
+from emporio.domain.rules import RULES
 
-REGRET_DAYS: Final = 7  # arrependimento e preferência, a partir do recebimento
-DEFECT_EXCHANGE_DAYS: Final = 30  # defeito: troca na loja, a partir da COMPRA
-LEGAL_WARRANTY_DAYS: Final = 90  # garantia legal, a partir do recebimento
+REGRET_DAYS: Final = RULES.regret_days  # arrependimento e preferência, a partir do recebimento
+DEFECT_EXCHANGE_DAYS: Final = (
+    RULES.defect_exchange_days
+)  # defeito: troca na loja, a partir da COMPRA
+LEGAL_WARRANTY_DAYS: Final = RULES.legal_warranty_days  # garantia legal, a partir do recebimento
 
 
 class ReturnReason(StrEnum):
@@ -55,12 +58,20 @@ class ReturnVerdict:
     warnings: tuple[str, ...] = ()
 
 
+def _months(n: int) -> str:
+    return f"{n // 12} ano{'s' if n > 12 else ''}" if n % 12 == 0 else f"{n} meses"
+
+
+_MANUFACTURER_WARRANTY: Final = " a ".join(map(_months, RULES.manufacturer_warranty_months))
 _PACKAGING: Final = "Produto na embalagem original, sem sinais de uso, com acessórios e manuais."
 _EXCLUSIONS: Final = (
     "Não são elegíveis: itens personalizados/sob encomenda, 'venda final' e boquilhas "
     "(a loja não tem essa marcação nos dados: confirmar com o cliente e encaminhar)."
 )
-_REFUND: Final = "Reembolso na mesma forma de pagamento em até 10 dias úteis; frete de devolução por conta da loja."
+_REFUND: Final = (
+    f"Reembolso na mesma forma de pagamento em até {RULES.refund_business_days} dias úteis; "
+    "frete de devolução por conta da loja."
+)
 _PREFERENCE: Final = "Troca sujeita à disponibilidade; diferença de valor cobrada ou reembolsada."
 
 
@@ -190,7 +201,7 @@ def _check_defect(
         reason,
         basis,
         "Fora da troca (30 dias da compra) e da garantia legal (90 dias do recebimento): "
-        "acionar a garantia do fabricante (6 meses a 2 anos); a loja pode intermediar.",
+        f"acionar a garantia do fabricante ({_MANUFACTURER_WARRANTY}); a loja pode intermediar.",
         deadline=warranty_deadline,
         today=today,
     )

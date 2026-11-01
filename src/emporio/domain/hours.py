@@ -16,8 +16,7 @@ from typing import Final
 import holidays
 
 from emporio.clock import TZ
-
-SCHEDULE_TEXT: Final = "segunda a sexta 09:00-18:00; sábado 09:00-13:00; domingo e feriados fechado"
+from emporio.domain.rules import RULES
 
 _WEEKDAYS_PT: Final = (
     "segunda-feira",
@@ -28,11 +27,30 @@ _WEEKDAYS_PT: Final = (
     "sábado",
     "domingo",
 )
-# weekday() -> (abre, fecha); domingo ausente. Intervalo [abre, fecha).
+_SHORT_NAMES: Final = ("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")
+# weekday() -> (abre, fecha); dia sem faixa = fechado. Intervalo [abre, fecha).
 _HOURS: Final[dict[int, tuple[time, time]]] = {
-    **dict.fromkeys(range(5), (time(9), time(18))),
-    5: (time(9), time(13)),
+    day: (window.open, window.close) for window in RULES.hours for day in window.weekdays
 }
+
+
+def _schedule_text() -> str:
+    parts = []
+    for window in RULES.hours:
+        days = sorted(window.weekdays)
+        contiguous = days == list(range(days[0], days[-1] + 1)) and len(days) > 1
+        names = (
+            f"{_SHORT_NAMES[days[0]]} a {_SHORT_NAMES[days[-1]]}"
+            if contiguous
+            else " e ".join(_SHORT_NAMES[d] for d in days)
+        )
+        parts.append(f"{names} {window.open:%H:%M}-{window.close:%H:%M}")
+    closed = [_SHORT_NAMES[d] for d in range(7) if d not in _HOURS]
+    parts.append(" e ".join([*closed, "feriados"]) + " fechado")
+    return "; ".join(parts)
+
+
+SCHEDULE_TEXT: Final = _schedule_text()
 
 
 def weekday_pt(day: date) -> str:
