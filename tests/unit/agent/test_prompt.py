@@ -105,6 +105,13 @@ def test_prompt_tells_the_model_to_report_the_whole_count() -> None:
     assert "`total_matches`" in text and "`not_shown`" in text
 
 
+def test_prompt_covers_sold_out_matches_and_information_given_across_messages() -> None:
+    text = prompt_at(OPEN)
+    assert "`unavailable_matches`" in text and 'nunca diga "não achei"' in text
+    assert "Junte o que ele disse em mensagens diferentes" in text
+    assert "sem perguntar a data de recebimento antes" in text
+
+
 def test_prompt_does_not_hardcode_store_hours() -> None:
     static = prompt_at(OPEN).split("<contexto_atual>")[0]
     assert not re.search(r"\b\d{1,2}h\b|\d{2}:\d{2}", static)
