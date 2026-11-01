@@ -18,8 +18,8 @@ MONEY_LITERAL = re.compile(r"[1-9]\d*(?:\\?\.\d{3})*,\d{2}")
 
 
 def test_the_golden_has_the_expected_shape(cases: list[Case]) -> None:
-    assert len(cases) == 30
-    assert sum(len(c.turns) > 1 for c in cases) == 3  # os multi-turno
+    assert len(cases) == 37
+    assert sum(len(c.turns) > 1 for c in cases) == 5  # os multi-turno
     assert all(c.turns and c.intent for c in cases)
 
 
@@ -27,7 +27,16 @@ def test_the_suites_split_the_golden_and_an_unknown_suite_is_rejected(
     cases: list[Case], facts: Facts
 ) -> None:
     assert {c.suite for c in cases} == {"regression", "capability"}
-    assert [c.id for c in cases if c.suite == "capability"] == ["M01-pix-e-12x-em-sequencia"]
+    assert [c.id for c in cases if c.suite == "capability"] == [
+        "M01-pix-e-12x-em-sequencia",
+        "G28-conserto-e-aula",
+        "G29-ar-condicionado-e-animais",
+        "G30-entrega-aos-sabados",
+        "G31-status-do-pedido-17",
+        "G32-troca-de-pedido-na-conversa",
+        "G33-reclamacao-com-email-depois",
+        "G34-reclamacao-com-telefone-na-mesma-fala",
+    ]
     raw = {"id": "X", "intent": "x", "turns": ["oi"], "suite": "outra"}
     with pytest.raises(CaseError, match="suite 'outra' desconhecida"):
         parse_case(raw, facts)
