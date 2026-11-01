@@ -1,4 +1,7 @@
-.PHONY: install chat ui lint fmt type test cov eval eval-regression eval-capability eval-regress sync-dataset policies clean
+.PHONY: run install chat ui lint fmt type test cov eval eval-regression eval-capability eval-regress sync-dataset policies clean
+
+run:  # um comando só: instala o que falta e abre a interface (sem make: uv run emporio-ui)
+	uv run emporio-ui
 
 install:
 	uv sync --locked
