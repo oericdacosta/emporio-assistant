@@ -112,6 +112,37 @@ def test_prompt_covers_sold_out_matches_and_information_given_across_messages() 
     assert "sem perguntar a data de recebimento antes" in text
 
 
+def _example(name: str) -> str:
+    examples = prompt_at(OPEN).split("<exemplos>")[1]
+    return examples.split(f'<exemplo nome="{name}">')[1].split("</exemplo>")[0]
+
+
+def test_a_policy_question_without_an_order_is_answered_after_consulting_the_policy() -> None:
+    """O eval mostrou o modelo respondendo a regra de devolução de memória (caso G14): sem um
+    exemplo desse caso, ele não consulta ``search_policy`` quando o cliente não cita pedido."""
+    lines = [line for line in _example("devolucao_com_verificacao").splitlines() if line.strip()]
+    assert lines[0].startswith("Cliente:") and not any(c.isdigit() for c in lines[0])
+    assert lines[1].startswith("Téo chama search_policy(")
+    first_reply = next(line for line in lines if line.startswith("Téo:"))
+    assert lines.index(first_reply) > 1  # a resposta só vem depois da consulta
+
+
+def test_no_example_states_a_real_policy_deadline() -> None:
+    """Com o prazo real escrito no exemplo, o modelo o tratava como conhecimento próprio e
+    deixava de consultar a política. O exemplo mostra o hábito; o valor vem da tool."""
+    examples = prompt_at(OPEN).split("<exemplos>")[1].split("</exemplos>")[0]
+    assert not re.search(r"\b(7|30|90) (\(\w+\) )?dias", examples)
+
+
+def test_the_prompt_says_policy_is_consulted_even_when_the_model_thinks_it_knows() -> None:
+    assert "mesmo que você ache que já sabe" in prompt_at(OPEN)
+
+
+def test_the_example_still_joins_the_order_and_the_proof_sent_in_separate_messages() -> None:
+    example = _example("devolucao_com_verificacao")
+    assert "pedido 1234" in example.lower() and "sem perguntar de novo" in example
+
+
 def test_prompt_does_not_hardcode_store_hours() -> None:
     static = prompt_at(OPEN).split("<contexto_atual>")[0]
     assert not re.search(r"\b\d{1,2}h\b|\d{2}:\d{2}", static)
