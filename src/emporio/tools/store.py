@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import Field
 
+from emporio.domain import store
 from emporio.domain.hours import SCHEDULE_TEXT, store_status, weekday_pt
 from emporio.domain.pricing import brl, quote
 from emporio.domain.shipping import (
@@ -19,15 +20,10 @@ from emporio.tools.catalog import require_product
 from emporio.tools.deps import ToolContext
 from emporio.tools.registry import Money, Params, Tool
 
-NAME = "Empório da Música"
-ADDRESS = "Rua 14 de Maio, 3200 — Centro, Campo Grande - MS, 79202-333"
-PHONE = "(67) 3341-4444"
-WHATSAPP = "(67) 3321-4500"
 PHONES = (
-    {"label": "Telefone", "number": PHONE},
-    {"label": "WhatsApp", "number": WHATSAPP},
+    {"label": "Telefone", "number": store.PHONE},
+    {"label": "WhatsApp", "number": store.WHATSAPP},
 )
-EMAIL = "contato@emporiodamusica.com.br"
 
 
 class StoreInfoParams(Params):
@@ -37,10 +33,10 @@ class StoreInfoParams(Params):
 def get_store_info_tool(ctx: ToolContext, args: StoreInfoParams) -> dict[str, Any]:
     status = store_status(ctx.clock.now())
     return {
-        "name": NAME,
-        "address": ADDRESS,
+        "name": store.NAME,
+        "address": store.ADDRESS,
         "phones": list(PHONES),
-        "email": EMAIL,
+        "email": store.EMAIL,
         "hours": SCHEDULE_TEXT,
         "now": status.now.isoformat(timespec="minutes"),
         "weekday": weekday_pt(status.now.date()),

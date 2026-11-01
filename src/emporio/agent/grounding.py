@@ -25,7 +25,7 @@ import re
 from decimal import Decimal
 from typing import Any, Final, Self
 
-from emporio.tools.store import WHATSAPP
+from emporio.domain.store import WHATSAPP
 
 _MONEY_NUM: Final = r"(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?"
 _BRL: Final = re.compile(rf"R\$\s?{_MONEY_NUM}")
