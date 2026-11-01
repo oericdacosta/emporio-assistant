@@ -6,8 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from emporio.data.repository import CsvRepository, DataLoadError, default_data_dir
+from emporio.data.repository import CsvRepository, DataLoadError
 from emporio.domain.models import OrderStatus, PaymentMethod, ProductStatus
+from emporio.paths import default_data_dir
 
 
 @pytest.fixture(scope="module")

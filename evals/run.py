@@ -20,10 +20,11 @@ from emporio import envfile
 from emporio.agent.prompt import build_system_prompt
 from emporio.app import load_data
 from emporio.clock import FixedClock
-from emporio.data.repository import DataLoadError, default_data_dir
+from emporio.data.repository import DataLoadError
 from emporio.domain.hours import store_status
 from emporio.errors import ConfigError, ProviderFatal
 from emporio.llm.factory import make_llm
+from emporio.paths import default_data_dir
 from evals.cases import DEFAULT_NOW, CaseError, load_cases
 from evals.facts import FactError, Facts
 from evals.report import Meta, Prices, pass_map, render, render_json
