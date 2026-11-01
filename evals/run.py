@@ -69,6 +69,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--repeat", type=int, default=1, help="execuções por caso (o modelo varia)")
     parser.add_argument("--out", type=Path, default=REPORTS)
     parser.add_argument(
+        "--label",
+        default="",
+        help="sufixo do nome do relatório, para não sobrescrever o do mesmo dia",
+    )
+    parser.add_argument(
         "--baseline", type=Path, help="JSON de uma execução anterior; sai com 1 se algo regredir"
     )
     parser.add_argument("--price-input", type=float, help="US$ por milhão de tokens de entrada")
@@ -118,7 +123,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     now = datetime.now()
     meta = Meta(llm.model, now, _commit(), _prompt_hash(), args.repeat, prices)
     args.out.mkdir(parents=True, exist_ok=True)
-    path = args.out / f"{now:%Y-%m-%d}_{llm.model.replace('/', '-')}.md"
+    suffix = f"_{args.label}" if args.label else ""
+    path = args.out / f"{now:%Y-%m-%d}_{llm.model.replace('/', '-')}{suffix}.md"
     path.write_text(render(reports, meta), encoding="utf-8")
     (args.out / "latest.json").write_text(render_json(reports), encoding="utf-8")
     passed = sum(r.passed for r in reports)
