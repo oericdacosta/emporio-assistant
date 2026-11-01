@@ -51,6 +51,15 @@ def pass_map(reports: list[CaseReport]) -> dict[str, bool]:
     return {report.case.id: report.passed for report in reports}
 
 
+def _share(part: int, whole: int) -> str:
+    return f"{part}/{whole} ({part / whole:.0%})" if whole else "-"
+
+
+def _suite_line(reports: list[CaseReport], suite: str) -> str:
+    chosen = [r for r in reports if r.case.suite == suite]
+    return _share(sum(r.passed for r in chosen), len(chosen))
+
+
 def render(reports: list[CaseReport], meta: Meta) -> str:
     passed = sum(r.passed for r in reports)
     flaky = [r.case.id for r in reports if r.flaky]
@@ -66,6 +75,8 @@ def render(reports: list[CaseReport], meta: Meta) -> str:
         "",
         f"- modelo: `{meta.model}` | commit: `{meta.commit}` | hash do prompt: `{meta.prompt_hash}` | execuções por caso: {meta.repeat}",
         f"- **aprovados: {passed}/{len(reports)}** (reprovam só as verificações HARD)",
+        f"- **regressão: {_suite_line(reports, 'regression')}** (tem de ficar em 100%) | "
+        f"capacidade: {_suite_line(reports, 'capability')} (casos difíceis, ainda não dominados)",
         f"- casos com aviso SOFT: {soft}/{len(runs)} execuções | instáveis (passam e falham): {', '.join(flaky) or 'nenhum'}",
         f"- guarda de fundamentação: barrou {blocked} execução(ões); resposta segura entregue em {fallbacks}",
         f"- latência por caso: mediana {statistics.median(seconds):.1f}s, máxima {max(seconds):.1f}s",
@@ -81,8 +92,9 @@ def render(reports: list[CaseReport], meta: Meta) -> str:
         )
     lines += [
         "",
-        "| caso | intenção | HARD | SOFT | tools | tokens (ent/saída) | s |",
-        "|---|---|---|---|---|---|---|",
+        f"| caso | intenção | HARD | SOFT | tools | tokens (ent/saída) | s | suite | "
+        f"ok/{meta.repeat} | pass@{meta.repeat} | pass^{meta.repeat} |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for report in reports:
         first = report.runs[0]
@@ -93,8 +105,12 @@ def render(reports: list[CaseReport], meta: Meta) -> str:
         softs = len(first.verdict.soft) or "-"
         lines.append(
             f"| {report.case.id} | {report.case.intent} | {mark} | {softs} | {tools} | "
-            f"{first.usage.input_tokens}/{first.usage.output_tokens} | {first.seconds:.1f} |"
+            f"{first.usage.input_tokens}/{first.usage.output_tokens} | {first.seconds:.1f} | "
+            f"{report.case.suite} | {report.passes}/{len(report.runs)} | "
+            f"{int(report.passed_any)} | {int(report.passed)} |"
         )
+
+    lines += _by_intent(reports, meta.repeat)
 
     for report in reports:
         if report.passed and not any(run.verdict.soft for run in report.runs):
@@ -108,6 +124,26 @@ def render(reports: list[CaseReport], meta: Meta) -> str:
             for answer in run.conversation.answers[-1:]:
                 lines += ["", f"> {answer}"]
     return "\n".join(lines) + "\n"
+
+
+def _by_intent(reports: list[CaseReport], k: int) -> list[str]:
+    """pass@1 é a taxa por execução; pass@k e pass^k contam casos (ver o README dos evals)."""
+    lines = [
+        "",
+        "## Por intenção",
+        "",
+        f"| intenção | casos | pass@1 (execuções) | pass@{k} (ao menos uma) | pass^{k} (todas) |",
+        "|---|---|---|---|---|",
+    ]
+    for intent in sorted({r.case.intent for r in reports}):
+        chosen = [r for r in reports if r.case.intent == intent]
+        runs = sum(len(r.runs) for r in chosen)
+        lines.append(
+            f"| {intent} | {len(chosen)} | {_share(sum(r.passes for r in chosen), runs)} | "
+            f"{_share(sum(r.passed_any for r in chosen), len(chosen))} | "
+            f"{_share(sum(r.passed for r in chosen), len(chosen))} |"
+        )
+    return lines
 
 
 def render_json(reports: list[CaseReport]) -> str:

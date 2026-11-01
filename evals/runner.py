@@ -39,7 +39,18 @@ class CaseReport:
 
     @property
     def passed(self) -> bool:
+        """pass^k: todas as k execuções passaram."""
         return all(run.verdict.passed for run in self.runs)
+
+    @property
+    def passes(self) -> int:
+        """Quantas execuções passaram."""
+        return sum(run.verdict.passed for run in self.runs)
+
+    @property
+    def passed_any(self) -> bool:
+        """pass@k: pelo menos uma das k execuções passou."""
+        return self.passes > 0
 
     @property
     def flaky(self) -> bool:

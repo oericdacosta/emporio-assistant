@@ -23,6 +23,16 @@ def test_the_golden_has_the_expected_shape(cases: list[Case]) -> None:
     assert all(c.turns and c.intent for c in cases)
 
 
+def test_the_suites_split_the_golden_and_an_unknown_suite_is_rejected(
+    cases: list[Case], facts: Facts
+) -> None:
+    assert {c.suite for c in cases} == {"regression", "capability"}
+    assert [c.id for c in cases if c.suite == "capability"] == ["M01-pix-e-12x-em-sequencia"]
+    raw = {"id": "X", "intent": "x", "turns": ["oi"], "suite": "outra"}
+    with pytest.raises(CaseError, match="suite 'outra' desconhecida"):
+        parse_case(raw, facts)
+
+
 def test_every_assumption_about_the_data_still_holds(cases: list[Case], facts: Facts) -> None:
     problems = [
         f"{c.id}: {why}" for c in cases for a in c.assume if (why := facts.check_assumption(a))

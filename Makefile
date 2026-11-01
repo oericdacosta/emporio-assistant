@@ -1,4 +1,4 @@
-.PHONY: install chat lint fmt type test cov eval eval-regress policies clean
+.PHONY: install chat lint fmt type test cov eval eval-regression eval-capability eval-regress policies clean
 
 install:
 	uv sync --locked
@@ -27,6 +27,12 @@ EVAL_REPEAT ?= 1
 
 eval:  # chama o modelo de verdade: custa tokens e não roda no CI
 	uv run python -m evals.run --repeat $(EVAL_REPEAT)
+
+eval-regression:  # o portão: só os casos que o agente já acerta, todos têm de passar (sai com 1)
+	uv run python -m evals.run --suite regression --repeat 3
+
+eval-capability:  # os casos difíceis: mede o quanto falta, não quebra
+	uv run python -m evals.run --suite capability --repeat 3
 
 eval-regress:  # compara com a referência antes de mexer em prompt ou modelo
 	uv run python -m evals.run --repeat 3 --baseline evals/reports/baseline.json

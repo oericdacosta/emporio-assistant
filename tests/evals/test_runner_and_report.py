@@ -178,8 +178,9 @@ def test_main_fails_on_regression_against_the_baseline(
     baseline.write_text(json.dumps({"G01-preco-takamine-gd20": True}), encoding="utf-8")
     assert run_module.main(["--only", "G01", "--out", str(cli), "--baseline", str(baseline)]) == 1
 
+    # sem regressão em relação à referência, o portão da suite regression ainda reprova o caso
     baseline.write_text(json.dumps({"G01-preco-takamine-gd20": False}), encoding="utf-8")
-    assert run_module.main(["--only", "G01", "--out", str(cli), "--baseline", str(baseline)]) == 0
+    assert run_module.main(["--only", "G01", "--out", str(cli), "--baseline", str(baseline)]) == 1
 
 
 def test_main_configuration_errors_exit_with_3(
@@ -194,4 +195,36 @@ def test_main_configuration_errors_exit_with_3(
 
     monkeypatch.setattr(run_module, "make_llm", lambda model, env: passing_llm())
     assert run_module.main(["--only", "nenhum-caso", "--out", str(cli)]) == 3
+    assert "nenhum caso" in capsys.readouterr().err
+
+
+# --- as duas suites, pass@k e pass^k -------------------------------------------------------------
+
+
+def test_report_shows_suites_and_pass_at_k_and_pass_hat_k_per_case_and_intent(
+    by_id: dict[str, Case], repo: CsvRepository, policies: PolicyStore
+) -> None:
+    llm = FakeLLM(use("get_product", name="gd20"), say_from_tool(ANSWER), say("Não sei."))
+    reports = run_suite([by_id["G01-preco-takamine-gd20"]], llm, repo, policies, repeat=2)
+    text = render(reports, Meta("m", datetime(2026, 3, 23), "n/a", "x", 2))
+    assert "| regression | 1/2 | 1 | 0 |" in text  # passou em 1 de 2: pass@2 sim, pass^2 não
+    assert "| product_price | 1 | 1/2 (50%) | 1/1 (100%) | 0/1 (0%) |" in text
+    assert "**regressão: 0/1 (0%)**" in text and "capacidade: -" in text
+
+
+def test_a_failing_regression_case_breaks_the_run_but_a_capability_one_does_not(
+    monkeypatch: pytest.MonkeyPatch, cli: Path
+) -> None:
+    monkeypatch.setattr(run_module, "make_llm", lambda model, env: FakeLLM(say("Não sei.")))
+    assert run_module.main(["--only", "G01", "--out", str(cli)]) == 1
+    # M01 é da capability e tem 3 turnos: falhar não quebra
+    monkeypatch.setattr(run_module, "make_llm", lambda model, env: FakeLLM(*[say("Não sei.")] * 3))
+    assert run_module.main(["--only", "M01", "--out", str(cli)]) == 0
+
+
+def test_the_suite_flag_selects_only_that_suite(
+    monkeypatch: pytest.MonkeyPatch, cli: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(run_module, "make_llm", lambda model, env: passing_llm())
+    assert run_module.main(["--only", "G01", "--suite", "capability", "--out", str(cli)]) == 3
     assert "nenhum caso" in capsys.readouterr().err
