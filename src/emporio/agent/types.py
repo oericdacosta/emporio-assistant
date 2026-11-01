@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Final, Protocol
+from typing import Any, Final, Literal, Protocol
 
 from emporio.llm.base import LLMResponse, Message, Usage
 
@@ -18,6 +18,9 @@ FORCE_ANSWER_MESSAGE: Final = (
     "Você já consultou o que precisava. Responda agora ao cliente com as informações que tem; "
     "se faltar algum dado, diga que vai confirmar com a equipe."
 )
+
+
+Route = Literal["model", "injection", "out_of_scope", "emergency"]
 
 
 class Toolbox[C](Protocol):
@@ -90,6 +93,11 @@ class TurnResult:
     trace_id: str
     guard_blocked: bool  # a guarda barrou alguma resposta neste turno
     guard_blocks: tuple[GuardBlock, ...] = ()  # o que foi barrado, para os evals explicarem
+    offers_removed: int = 0  # ganchos finais repetidos que o ``compose`` tirou
+    working_products: int = 0  # produtos no estado de trabalho ao fim do turno
+    route: Route = "model"  # quem respondeu: o modelo ou o roteador de escopo
+    no_evidence_gate: bool = False  # o portão "sem tool, sem fato" agiu neste turno
+    detector_calls: int = 0  # chamadas do detector de afirmações
 
     @property
     def fallback(self) -> bool:
@@ -104,12 +112,20 @@ class Meter:
         self.tools: list[ToolRecord] = []
         self.guard_blocked = False
         self.guard_blocks: list[GuardBlock] = []
+        self.tool_results: list[tuple[str, dict[str, Any]]] = []  # base do fallback útil
+        self.offers_removed = 0
+        self.route: Route = "model"
+        self.no_evidence_gate = False
+        self.detector_calls = 0
 
     def add(self, response: LLMResponse) -> None:
         self.calls += 1
-        self.input_tokens += response.usage.input_tokens
-        self.output_tokens += response.usage.output_tokens
-        self.cached_tokens += response.usage.cached_tokens
+        self.add_usage(response.usage)
+
+    def add_usage(self, usage: Usage) -> None:
+        self.input_tokens += usage.input_tokens
+        self.output_tokens += usage.output_tokens
+        self.cached_tokens += usage.cached_tokens
 
     @property
     def usage(self) -> Usage:

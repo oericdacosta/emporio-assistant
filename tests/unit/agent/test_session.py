@@ -173,3 +173,12 @@ def test_session_ids_and_default_path() -> None:
     assert len(new_session_id()) == 8 and new_session_id() != new_session_id()
     assert default_history_path({}) == Path("history/sessions.db")
     assert default_history_path({"EMPORIO_HISTORY_DB": "dados/x.db"}) == Path("dados/x.db")
+
+
+def test_user_texts_include_the_current_one_and_are_not_stored() -> None:
+    from emporio.llm.base import Message
+
+    session = Session("s1", [Message("user", "oi"), Message("assistant", "olá")])
+    assert session.user_texts() == ("oi",)
+    session.current_text = "e o frete?"
+    assert session.user_texts() == ("oi", "e o frete?")

@@ -1,7 +1,7 @@
 """Sessão de conversa e histórico em SQLite.
 
 Grava só o texto das mensagens do cliente e do assistente, já sem dados pessoais. Nunca grava
-quem foi verificado, as falhas de verificação nem os resultados das tools: ao retomar uma
+o estado de trabalho (``WorkingState``), quem foi verificado, as falhas de verificação nem os resultados das tools: ao retomar uma
 conversa, o cliente verifica a identidade de novo. O agente não carrega nem salva nada; quem
 faz isso é a CLI, e só depois de um turno bem-sucedido.
 """
@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Final
 from uuid import uuid4
 
+from emporio.agent.state import WorkingState
 from emporio.clock import Clock, SystemClock
 from emporio.identity import SessionGuard
 from emporio.llm.base import Message
@@ -60,6 +61,13 @@ class Session:
     history: list[Message] = field(default_factory=list)  # só texto de usuário e assistente
     guard: SessionGuard = field(default_factory=SessionGuard)  # só em memória, nunca gravado
     approved_answers: list[str] = field(default_factory=list)  # alimenta a guarda de fundamentação
+    working: WorkingState = field(default_factory=WorkingState)  # só em memória, nunca gravado
+    current_text: str = ""  # a fala do cliente no turno em andamento; só em memória, nunca gravada
+
+    def user_texts(self) -> tuple[str, ...]:
+        """Todas as falas do cliente na conversa, a atual por último."""
+        past = tuple(m.content for m in self.history if m.role == "user")
+        return (*past, self.current_text) if self.current_text else past
 
     def window(self) -> list[Message]:
         """O trecho do histórico que vai ao modelo."""
