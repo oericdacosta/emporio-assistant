@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from emporio.agent.graph import Agent
-from emporio.agent.grounding import FALLBACK_MESSAGE
+from emporio.agent.grounding import FALLBACK_MESSAGE, Ledger
 from emporio.agent.session import Session
 from emporio.agent.types import (
     AgentConfig,
@@ -18,7 +18,7 @@ from emporio.agent.types import (
 )
 from emporio.errors import ProviderUnavailable
 from emporio.llm.base import Message, Usage
-from support.fakes import FakeLLM, StubToolbox, say, say_from_tool, use, use_many
+from support.fakes import FakeDetector, FakeLLM, StubToolbox, say, say_from_tool, use, use_many
 
 PRODUCT = {
     "ok": True,
@@ -35,7 +35,14 @@ def make_agent(
 ) -> tuple[Agent[str], StubToolbox]:
     box = toolbox or StubToolbox({"get_product": PRODUCT})
     config = config or AgentConfig()
-    agent = Agent(llm, box, lambda session: f"ctx-{session.id}", lambda session: "SISTEMA", config)
+    agent = Agent(
+        llm,
+        box,
+        lambda session: f"ctx-{session.id}",
+        lambda session: "SISTEMA",
+        config,
+        FakeDetector(),
+    )
     return agent, box
 
 
@@ -267,3 +274,17 @@ def test_events_report_every_tool_with_its_result() -> None:
     make_agent(llm)[0].run_turn(Session("s1"), "oi", events.append)
     assert [type(e).__name__ for e in events] == ["ToolStarted", "ToolFinished"] * 2
     assert events[0].arguments == {"name": "a"} and events[3].seconds >= 0
+
+
+def test_fallback_is_built_from_the_tool_results_of_the_turn() -> None:
+    llm = FakeLLM(use("get_product", name="gd20"), say("Sai por R$ 1,00."), say("Sai por R$ 2,00."))
+    agent, _ = make_agent(llm)
+
+    result = agent.run_turn(Session("s1"), "quanto custa o gd20?")
+
+    assert result.fallback and result.outcome is Outcome.FALLBACK
+    assert "Takamine GD20" in result.text and "R$ 2.199,00" in result.text
+    assert "R$ 2.089,05" in result.text and "(67)" in result.text
+    ledger = Ledger.for_turn("quanto custa o gd20?")
+    ledger.absorb(PRODUCT)
+    assert ledger.violations(result.text) == []

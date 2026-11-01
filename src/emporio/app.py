@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from emporio.agent.claims import FactClaimDetector
 from emporio.agent.graph import Agent
 from emporio.agent.prompt import build_system_prompt
 from emporio.agent.session import Session
@@ -54,6 +55,7 @@ def build_agent(
     complaints_log: Path = Path("logs/complaints.jsonl"),
     identity: IdentityVerifier | None = None,
     config: AgentConfig = AgentConfig(),  # noqa: B008
+    fact_detector: FactClaimDetector | None = None,
 ) -> Agent[ToolContext]:
     # um só verificador para todas as sessões: o bloqueio por pedido vale entre elas
     shared_identity = identity or IdentityVerifier()
@@ -66,12 +68,19 @@ def build_agent(
             session=session.guard,
             identity=shared_identity,
             complaints_log=complaints_log,
+            user_text=session.current_text,
+            user_texts=session.user_texts(),
         )
 
     def system_prompt(session: Session) -> str:
         now = clock.now()
         customer = repo.customer(session.guard.customer_id) if session.guard.customer_id else None
         first_name = customer.name.split()[0] if customer and customer.name.split() else None
-        return build_system_prompt(now, store_status(now), first_name)
+        return build_system_prompt(
+            now,
+            store_status(now),
+            first_name,
+            session.working.summary_lines(session.user_texts()),
+        )
 
-    return Agent(llm, build_registry(repo), make_ctx, system_prompt, config)
+    return Agent(llm, build_registry(repo), make_ctx, system_prompt, config, fact_detector)

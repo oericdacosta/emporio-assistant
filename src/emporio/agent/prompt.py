@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Sequence
 from datetime import datetime
 from functools import cache
 from pathlib import Path
@@ -24,6 +25,11 @@ _PROMPT_FILE: Final = Path(__file__).resolve().parents[1] / "prompts" / "system.
 @cache
 def _static_prompt() -> str:
     return _PROMPT_FILE.read_text(encoding="utf-8").rstrip("\n")
+
+
+def static_prompt() -> str:
+    """O texto fixo do prompt de sistema (com o marcador do contexto)."""
+    return _static_prompt()
 
 
 def prompt_version() -> str:
@@ -41,7 +47,10 @@ def _when(moment: datetime) -> str:
 
 
 def build_system_prompt(
-    now: datetime, status: StoreStatus, customer_first_name: str | None = None
+    now: datetime,
+    status: StoreStatus,
+    customer_first_name: str | None = None,
+    working_lines: Sequence[str] = (),
 ) -> str:
     lines = [
         "<contexto_atual>",
@@ -53,5 +62,6 @@ def build_system_prompt(
         lines.append(f"Loja fechada agora; reabre {_when(status.next_open)}.")
     if customer_first_name and (name := _first_name(customer_first_name)):
         lines.append(f"Cliente verificado: {name}.")
+    lines.extend(working_lines)  # resumo do WorkingState: ids, nomes e preços, nada pessoal
     lines.append("</contexto_atual>")
     return _static_prompt().replace(PLACEHOLDER, "\n".join(lines)) + "\n"
