@@ -84,24 +84,20 @@ def _clock(text: str | None) -> Clock:
         ) from error
 
 
-def _banner(ui: Ui, model: str, clock: Clock, fixed: bool, session: Session, db: str) -> None:
-    ui.note(
-        f"Empório da Música - {AGENT_NAME}, assistente virtual (simulação de atendimento por mensagem)",
-        "1",
-    )
-    ui.note(f"  modelo   : {model} (OpenAI)")
-    ui.note(
-        f"  relógio  : {format_moment(clock.now())} (America/Campo_Grande) - {'congelado por --now' if fixed else 'relógio real'}"
-    )
-    state = f"retomada, {len(session.history)} mensagens" if session.history else "nova"
-    ui.note(f"  sessão   : {session.id} ({state}; histórico em {db})")
-    ui.note(
-        "  Privacidade: as mensagens que você digita são enviadas à OpenAI para gerar as respostas."
-    )
-    ui.note(
-        "  Não envie CPF nem dados de cartão. Dados de pedido só são mostrados após a verificação."
-    )
-    ui.note("  Digite sua mensagem. /ajuda lista os comandos; /sair encerra.\n")
+def _banner(
+    ui: Ui, model: str, clock: Clock, fixed: bool, session: Session, db: str, *, interactive: bool
+) -> None:
+    ui.note(f"Empório da Música - {AGENT_NAME}, assistente virtual", "1")
+    if ui.trace:  # os detalhes da execução só interessam a quem pediu o trace
+        state = f"retomada, {len(session.history)} mensagens" if session.history else "nova"
+        ui.note(f"  modelo {model} (OpenAI) | sessão {session.id} ({state}; histórico em {db})")
+        ui.note(
+            f"  relógio: {format_moment(clock.now())} (America/Campo_Grande), "
+            f"{'congelado por --now' if fixed else 'relógio real'}"
+        )
+    if interactive:
+        ui.note("  /ajuda  /novo  /esquecer  /trace  /sair")
+    ui.note("")
 
 
 def main(
@@ -150,7 +146,7 @@ def main(
         ui.error(str(error))
         return codes.CONFIG
 
-    _banner(ui, llm.model, clock, bool(now_text), session, db)
+    _banner(ui, llm.model, clock, bool(now_text), session, db, interactive=not args.message)
     try:
         return chat.play(args.message) if args.message else chat.repl()
     except KeyboardInterrupt:  # Ctrl-C fora do prompt e do turno

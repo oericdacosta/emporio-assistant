@@ -19,8 +19,13 @@ HELP: Final = f"""Comandos (começam com /):
   /esquecer   apaga o histórico desta conversa e a verificação de identidade
   /trace      liga ou desliga o trace (consultas, tokens e latência de cada turno)
   /sair       encerra (Ctrl-D também)
-Qualquer outra linha é enviada ao {AGENT_NAME} como mensagem do cliente (máx. {MAX_CHARS} caracteres)."""
+Qualquer outra linha é enviada ao {AGENT_NAME} como mensagem do cliente (máx. {MAX_CHARS} caracteres).
+Para começar, pergunte, por exemplo:
+  "Quais violões até R$ 1000?"   "Que horas a loja abre?"   "Quero devolver um pedido"
+Para falar de um pedido, informe o número dele e o e-mail ou os 4 últimos dígitos do telefone.
+Privacidade: as mensagens que você digita são enviadas à OpenAI para gerar as respostas. Não envie CPF nem dados de cartão."""
 
+COMMANDS: Final = ("/ajuda", "/novo", "/esquecer", "/trace", "/sair")
 EPILOG: Final = f"""exemplos:
   emporio --model <modelo> --trace
   emporio --model <modelo> --now 2026-02-20T10:00 -m "Posso devolver o pedido 7?"

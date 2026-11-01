@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
+import textwrap
 from typing import Any, TextIO
 
 from emporio.agent.turn_log import mask
@@ -12,6 +14,8 @@ from emporio.agent.types import Event, ToolFinished, ToolStarted, TurnResult
 from emporio.cli.text import AGENT_NAME, TOOL_LABELS
 
 SUMMARY_CHARS = 280
+MAX_WIDTH = 100  # largura máxima do texto do Téo em terminal largo
+MIN_WIDTH = 40
 
 
 class Style:
@@ -60,7 +64,27 @@ class Ui:
         )
 
     def reply(self, text: str) -> None:
-        self.say(f"{self._o('1;36', AGENT_NAME + '>')} {text}\n")
+        self.say(f"{self._o('1;36', AGENT_NAME + '>')} {self._wrap(text, len(AGENT_NAME) + 2)}\n")
+
+    def _wrap(self, text: str, indent: int) -> str:
+        """Em terminal, quebra o texto na largura da janela e alinha as linhas seguintes depois do
+        rótulo. Só muda a quebra de linha: as palavras são as mesmas. Sem terminal, devolve igual."""
+        if not self._out.isatty():
+            return text
+        width = max(MIN_WIDTH, min(shutil.get_terminal_size().columns, MAX_WIDTH))
+        pad = " " * indent
+        lines = [
+            textwrap.fill(
+                line,
+                width=width,
+                initial_indent=pad,
+                subsequent_indent=pad,
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
+            for line in text.split("\n")
+        ]
+        return "\n".join(lines)[indent:]  # a primeira linha já começa depois do rótulo
 
     def echo(self, text: str) -> None:
         """Mostra a fala do cliente quando ela não foi digitada num terminal."""
@@ -90,10 +114,9 @@ class Ui:
         elif isinstance(event, ToolFinished) and self.trace:
             status = "ok" if event.ok else "erro"
             arguments = json.dumps(mask(self._arguments), ensure_ascii=False)
-            self.note(
-                f"  [ferramenta] {event.name} {arguments} -> {status} "
-                f"{event.seconds * 1000:.0f}ms: {summarize(event.result)}"
-            )
+            self.note(f"  [ferramenta] {event.name} {status} {event.seconds * 1000:.0f}ms")
+            self.note(f"      argumentos: {arguments}")
+            self.note(f"      resultado : {summarize(event.result)}")
             self._arguments = {}
 
     def turn_summary(self, result: TurnResult) -> None:
@@ -105,6 +128,9 @@ class Ui:
             notes += " | resposta segura no lugar"
         self.note(
             f"  [turno] {len(result.tools)} consulta(s) | {result.llm_calls} chamada(s) ao modelo | "
-            f"tokens entrada/saída/cache: {usage.input_tokens}/{usage.output_tokens}/{usage.cached_tokens}"
-            f" | {result.seconds * 1000:.0f} ms | trace_id={result.trace_id}{notes}"
+            f"{result.seconds * 1000:.0f} ms | trace_id={result.trace_id}{notes}"
+        )
+        self.note(
+            f"          tokens entrada/saída/cache: "
+            f"{usage.input_tokens}/{usage.output_tokens}/{usage.cached_tokens}"
         )

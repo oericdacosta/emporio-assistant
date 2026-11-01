@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import io
 from datetime import datetime
 from pathlib import Path
+
+import pytest
 
 from emporio import envfile
 from emporio.cli.text import format_moment, sanitize, scrub
@@ -48,3 +51,28 @@ def test_envfile_load_ignores_a_missing_file(tmp_path: Path) -> None:
     env: dict[str, str] = {}
     envfile.load(tmp_path / "nao-existe", env)
     assert env == {}
+
+
+def test_reply_is_wrapped_to_the_terminal_width_only_on_a_tty(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from emporio.cli.ui import Ui
+
+    text = "palavra " * 30
+    ui = Ui(trace=False, debug=False)
+    ui.reply(text)
+    assert capsys.readouterr().out.count("\n") == 2  # sem terminal: uma linha, sem quebra
+
+    class Tty(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    out = Tty()
+    monkeypatch.setattr("sys.stdout", out)
+    monkeypatch.setenv("COLUMNS", "50")
+    monkeypatch.setenv("NO_COLOR", "1")
+    Ui(trace=False, debug=False).reply(text)
+    lines = out.getvalue().rstrip("\n").split("\n")
+    assert len(lines) > 2 and all(len(line) <= 50 for line in lines)
+    assert all(line.startswith("     ") for line in lines[1:])  # alinhado depois de "Téo> "
+    assert " ".join(out.getvalue().split())[len("Téo> ") :] == text.strip()  # mesmas palavras

@@ -64,14 +64,30 @@ def stored(path: Path, session_id: str | None = None) -> int:
 # --- banner e configuração --------------------------------------------------------------------
 
 
-def test_banner_declares_model_clock_and_what_is_sent_to_the_provider(
+def test_banner_is_short_and_lists_the_commands(
     run: Run, capsys: pytest.CaptureFixture[str]
 ) -> None:
     assert run(["--now", "2026-02-20T10:00"], ["/sair"]) == 0
     err = capsys.readouterr().err
-    assert "modelo   : fake-model (OpenAI)" in err
+    assert "/ajuda  /novo  /esquecer  /trace  /sair" in err
+    assert "modelo" not in err and "relógio" not in err  # detalhes só com --trace
+
+
+def test_trace_banner_declares_model_and_clock(
+    run: Run, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert run(["--trace", "--now", "2026-02-20T10:00"], ["/sair"]) == 0
+    err = capsys.readouterr().err
+    assert "modelo fake-model (OpenAI)" in err
     assert "sexta-feira, 20/02/2026 10:00" in err and "congelado por --now" in err
-    assert "enviadas à OpenAI" in err and "CPF" in err
+
+
+def test_help_says_what_is_sent_to_the_provider(
+    run: Run, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run([], ["/ajuda", "/sair"])
+    out = capsys.readouterr().out
+    assert "enviadas à OpenAI" in out and "CPF" in out
 
 
 def test_missing_model_and_key_exit_with_guidance(capsys: pytest.CaptureFixture[str]) -> None:
@@ -99,7 +115,7 @@ def test_clock_can_come_from_the_environment(
         "EMPORIO_HISTORY_DB": str(paths["db"]),
         "EMPORIO_TURN_LOG": str(paths["log"]),
     }
-    assert run([], ["/sair"], env=env) == 0
+    assert run(["--trace"], ["/sair"], env=env) == 0
     assert "segunda-feira, 23/03/2026 10:00" in capsys.readouterr().err
 
 
@@ -120,7 +136,8 @@ def test_conversation_with_trace_shows_tools_tokens_and_latency(
     assert run(["--trace"], ["Quanto custa o GD20?", "/sair"], llm) == 0
     out, err = capsys.readouterr()
     assert "Você> Quanto custa o GD20?" in out and "Téo> O GD20 sai por R$ 2.199,00." in out
-    assert '[ferramenta] get_product {"name": "gd20"} -> ok' in err and "2.199,00" in err
+    assert "[ferramenta] get_product ok" in err and 'argumentos: {"name": "gd20"}' in err
+    assert "resultado :" in err and "2.199,00" in err
     assert "1 consulta(s) | 2 chamada(s) ao modelo" in err
     assert "tokens entrada/saída/cache: 20/10/0" in err and "trace_id=" in err
 
@@ -185,7 +202,7 @@ def test_commands(run: Run, capsys: pytest.CaptureFixture[str]) -> None:
     cap = capsys.readouterr()
     assert "/esquecer" in cap.out
     assert "Trace: ligado." in cap.err and "Trace: desligado." in cap.err
-    assert "Comando desconhecido: /foo" in cap.err
+    assert "Comando desconhecido: /foo. Digite /ajuda." in cap.err
 
 
 def test_long_input_is_refused_and_control_characters_are_removed(
@@ -214,7 +231,7 @@ def test_forget_clears_the_history_and_the_verification(
     )
     err = capsys.readouterr().err
     assert "apaguei o histórico" in err
-    assert "get_order_status" in err and "-> erro" in err  # a verificação se foi com o /esquecer
+    assert "[ferramenta] get_order_status erro" in err  # a verificação se foi com o /esquecer
     assert stored(paths["db"], "s1") == 2  # só a troca depois do /esquecer
 
 
@@ -235,7 +252,7 @@ def test_new_conversation_keeps_the_previous_one_resumable(
     assert stored(paths["db"], "s1") == 2 and stored(paths["db"]) == 4
 
     llm = FakeLLM(say("Continuando."))
-    run(["--session", "s1"], ["e aí?", "/sair"], llm)
+    run(["--trace", "--session", "s1"], ["e aí?", "/sair"], llm)
     assert "retomada, 2 mensagens" in capsys.readouterr().err
     assert [m.content for m in llm.calls[0].messages[1:]] == ["oi", "Oi!", "e aí?"]
 
@@ -292,3 +309,24 @@ def test_each_turn_is_logged_without_the_conversation_text(
     assert [line["event"] for line in lines] == ["turn", "llm_failure"]
     assert lines[0]["session_id"] == "s1" and lines[0]["tools"][0]["name"] == "get_product"
     assert "gd20?" not in json.dumps(lines) and "2.199" not in json.dumps(lines)
+
+
+def test_unknown_command_suggests_the_closest_one(
+    run: Run, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run([], ["/ajda", "/sair"])
+    assert "Quis dizer /ajuda?" in capsys.readouterr().err
+
+
+def test_leaving_a_conversation_with_history_says_how_to_resume_it(
+    run: Run, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run(["--session", "minha"], ["oi", "/sair"], FakeLLM(say("Oi!")))
+    assert "emporio --session minha" in capsys.readouterr().err
+    run([], ["/sair"])
+    assert "--session" not in capsys.readouterr().err  # conversa vazia: nada a retomar
+
+
+def test_one_shot_banner_has_no_commands(run: Run, capsys: pytest.CaptureFixture[str]) -> None:
+    run(["-m", "oi"], None, FakeLLM(say("Oi!")))
+    assert "/ajuda" not in capsys.readouterr().err
