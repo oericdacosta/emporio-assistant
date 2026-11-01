@@ -12,7 +12,9 @@ from emporio.privacy import redact
         ("cpf 123.456.789-09 e 12345678909", "cpf [cpf] e [cpf]"),
         ("ligue (67) 99812-3456 ou 67 99812-3456", "ligue [telefone] ou [telefone]"),
         ("rastreio BRAB1234567BR chegou?", "rastreio [rastreio] chegou?"),
+        ("cartão 4111 1111 1111 1111 e 4111-1111-1111-1111", "cartão [cartao] e [cartao]"),
         ("o violão custa R$ 2.199,00", "o violão custa R$ 2.199,00"),
+        ("pedido 12 em 12x de R$ 183,25", "pedido 12 em 12x de R$ 183,25"),
     ],
 )
 def test_redact(raw: str, expected: str) -> None:
