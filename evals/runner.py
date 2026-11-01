@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from emporio.agent.session import Session
-from emporio.agent.types import AgentConfig, ToolRecord
+from emporio.agent.types import AgentConfig, GuardBlock, ToolRecord
 from emporio.app import build_agent
 from emporio.clock import FixedClock
 from emporio.data.policies import PolicyStore
@@ -69,6 +69,7 @@ def run_case(
     started = time.perf_counter()
     answers: list[str] = []
     tools: list[ToolRecord] = []
+    blocks: list[GuardBlock] = []
     fallback = guard_blocked = False
     totals = [0, 0, 0]
     error: str | None = None
@@ -87,6 +88,7 @@ def run_case(
                 result = agent.run_turn(session, text)
                 answers.append(result.text)
                 tools += result.tools
+                blocks += result.guard_blocks
                 fallback = fallback or result.fallback
                 guard_blocked = guard_blocked or result.guard_blocked
                 for index, amount in enumerate(
@@ -101,7 +103,9 @@ def run_case(
             raise
         except LLMError as failure:
             error = f"{type(failure).__name__}: {failure}"
-    conversation = Conversation(tuple(answers), tuple(tools), fallback, guard_blocked, error)
+    conversation = Conversation(
+        tuple(answers), tuple(tools), fallback, guard_blocked, tuple(blocks), error
+    )
     return RunOutcome(
         conversation,
         check(case, conversation),
