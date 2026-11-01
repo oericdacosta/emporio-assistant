@@ -122,3 +122,21 @@ def test_accessory_detector(text: str, expected: bool) -> None:
 
 def test_normalize_strips_accents_and_splits_letters_from_digits() -> None:
     assert normalize("Violão GD20-Nylon") == "violao gd 20 nylon"
+
+
+def test_a_sold_out_model_is_reported_apart_from_the_available_results(repo: CsvRepository) -> None:
+    result = search_products(repo, "Giannini GF-3D")
+    assert ids(result.unavailable) == [96] and 96 not in ids(result.hits)
+    assert ids(search_products(repo, "Giannini GF-3D", only_available=False).unavailable) == []
+
+
+def test_unavailable_items_are_not_listed_when_they_match_no_better_than_the_rest(
+    repo: CsvRepository,
+) -> None:
+    assert search_products(repo, "violão").unavailable == ()
+    assert search_products(repo, "Yamaha C40").unavailable == ()
+    assert search_products(repo, "", category="violão").unavailable == ()
+
+
+def test_a_discontinued_model_is_also_reported(repo: CsvRepository) -> None:
+    assert 113 in ids(search_products(repo, "Shelby SN-7C").unavailable)
