@@ -11,6 +11,8 @@ import logging
 import time
 from typing import Any
 
+from langsmith import traceable
+
 from emporio.agent.grounding import Ledger
 from emporio.agent.session import Session
 from emporio.agent.types import (
@@ -27,6 +29,16 @@ from emporio.agent.types import (
 from emporio.llm.base import Message, ToolCall
 
 log = logging.getLogger(__name__)
+
+
+@traceable(
+    run_type="tool",
+    process_inputs=lambda inputs: {
+        "arguments": inputs.get("arguments")
+    },  # sem máscara, de propósito
+)
+def _call_tool[C](toolbox: Toolbox[C], name: str, arguments: Any, ctx: C) -> dict[str, Any]:
+    return toolbox.call(name, arguments, ctx)
 
 
 def run_tools[C](
@@ -56,7 +68,9 @@ def run_tools[C](
                 on_event(ToolStarted(call.name, call.arguments))
             began = time.perf_counter()
             try:
-                result = toolbox.call(call.name, call.arguments, ctx)
+                result = _call_tool(
+                    toolbox, call.name, call.arguments, ctx, langsmith_extra={"name": call.name}
+                )
             except Exception:
                 log.exception("falha inesperada na tool %s", call.name)
                 result = failure("internal_error", "a consulta falhou por um problema nosso")

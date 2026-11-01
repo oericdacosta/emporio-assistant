@@ -10,8 +10,7 @@ import sys
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
-from emporio import __version__, envfile
-from emporio.agent import turn_log
+from emporio import __version__, envfile, observability
 from emporio.agent.session import Session, SQLiteSessionStore, default_history_path, new_session_id
 from emporio.app import build_agent, check_data, load_data
 from emporio.cli import codes
@@ -30,7 +29,6 @@ with contextlib.suppress(ImportError):  # setas e edição de linha; o históric
     import readline  # noqa: F401
 
 LlmFactory = Callable[[str | None, Mapping[str, str]], LLMClient]
-DEFAULT_TURN_LOG = "logs/turns.jsonl"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -129,7 +127,8 @@ def main(
             ui.say(check_data(data_dir))
             return codes.OK
         if args.demo:
-            return run_demo(args.demo, ui, data_dir)
+            with observability.disabled():  # a demo não vai ao LangSmith
+                return run_demo(args.demo, ui, data_dir)
 
         now_text = args.now or env.get("AGENT_NOW")
         clock = _clock(now_text)
@@ -138,9 +137,9 @@ def main(
         db = args.db or str(default_history_path(env))
         store = SQLiteSessionStore(Path(db), clock=clock)
         session = store.load(args.session) if args.session else Session(new_session_id())
-        turn_log.configure(Path(env.get("EMPORIO_TURN_LOG", DEFAULT_TURN_LOG)))
+        observability.setup(env)
         agent = build_agent(llm, repo=repo, clock=clock, policies=policies)
-        chat = Chat(agent, session, ui, clock=clock, store=store, log_turns=True)
+        chat = Chat(agent, session, ui, clock=clock, store=store)
     except CassetteError as error:
         ui.error(str(error))
         return codes.CASSETTE
@@ -156,3 +155,4 @@ def main(
         return codes.INTERRUPTED
     finally:
         store.close()
+        observability.flush()

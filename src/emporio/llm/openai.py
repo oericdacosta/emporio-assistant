@@ -6,6 +6,7 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
+from langsmith.wrappers import wrap_openai
 from openai import OpenAI
 
 from emporio.llm.base import LLMResponse, Message, ToolCall, ToolChoice, ToolSpec, Usage
@@ -45,8 +46,8 @@ def _arguments(raw: str) -> dict[str, Any]:
 class OpenAIClient:
     def __init__(self, model: str, *, api_key: str, client: Any = None) -> None:
         self.model = model
-        self._client = client or OpenAI(
-            api_key=api_key, timeout=TIMEOUT_SECONDS, max_retries=MAX_RETRIES
+        self._client = client or wrap_openai(  # no-op com o tracing desligado
+            OpenAI(api_key=api_key, timeout=TIMEOUT_SECONDS, max_retries=MAX_RETRIES)
         )
 
     def chat(

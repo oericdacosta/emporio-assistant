@@ -1,4 +1,4 @@
-.PHONY: install chat ui lint fmt type test cov eval eval-regression eval-capability eval-regress policies clean
+.PHONY: install chat ui lint fmt type test cov eval eval-regression eval-capability eval-regress sync-dataset policies clean
 
 install:
 	uv sync --locked
@@ -39,6 +39,9 @@ eval-capability:  # os casos difíceis: mede o quanto falta, não quebra
 
 eval-regress:  # compara com a referência antes de mexer em prompt ou modelo
 	uv run python -m evals.run --repeat 3 --baseline evals/reports/baseline.json
+
+sync-dataset:  # publica o golden no LangSmith como 'emporio-golden' (precisa de LANGSMITH_API_KEY)
+	uv run python -m evals.sync_dataset
 
 policies:
 	uv run scripts/extract_policies.py data/raw/politicas_da_loja.pdf data/policies.md

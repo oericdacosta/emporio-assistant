@@ -15,6 +15,28 @@ uv run python -m evals.run --only G1 --label depois-do-ajuste   # não sobrescre
 A chave vem de `OPENAI_API_KEY` e o modelo de `LLM_MODEL` (ou do arquivo `.env`). Os preços por
 milhão de tokens são opcionais e informados por quem roda; sem eles o relatório só traz tokens.
 
+## LangSmith
+
+Com `LANGSMITH_API_KEY` no `.env` (veja `.env.example`), `evals.run` faz três coisas a mais:
+
+1. **Dataset**: publica o golden como `emporio-golden` (`evals/sync_dataset.py`, também via
+   `make sync-dataset`). Cada caso é um exemplo com id fixo, `inputs {turns, now}` e
+   `metadata {id, suite, intent}`; rodar de novo atualiza em vez de duplicar. As expectativas
+   (HARD/SOFT) ficam no código, não no dataset.
+2. **Experimento**: roda `langsmith.evaluate()` com um caso por exemplo (`--repeat` vira
+   `num_repetitions`, `max_concurrency=1`). Os avaliadores são código, sem LLM como juiz:
+   `hard` (0/1 com os motivos no comentário) e `soft` (fração das frases esperadas). Um avaliador
+   de resumo calcula pass@k e pass^k por suite e por intenção. Cada trace leva as tags
+   `suite:<...>` e `case:<id>`; o metadado do experimento traz suite, modelo, commit e hash do
+   prompt. As tools aparecem inteiras, sem máscara.
+3. **Relatório**: o Markdown de `reports/` continua sendo gerado e commitado (é a evidência no
+   repositório) e passa a trazer o nome e o link do experimento.
+
+**O portão não depende do LangSmith.** O relatório, o `latest.json`, o `--baseline` e a saída 1 da
+suite regression saem das execuções locais (as mesmas que o experimento avalia). Sem chave, ou se
+o LangSmith falhar, os evals rodam localmente como antes, com o aviso "Nenhum experimento foi
+criado"; o que o LangSmith não completou roda local.
+
 ## As duas suites
 
 Cada caso do `golden.yaml` tem `suite:` (o padrão é `regression`).

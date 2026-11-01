@@ -8,6 +8,7 @@ quando o cliente foi verificado. O prompt nunca calcula horário.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from datetime import datetime
 from functools import cache
@@ -23,6 +24,11 @@ _PROMPT_FILE: Final = Path(__file__).resolve().parents[1] / "prompts" / "system.
 @cache
 def _static_prompt() -> str:
     return _PROMPT_FILE.read_text(encoding="utf-8").rstrip("\n")
+
+
+def prompt_version() -> str:
+    """Versão do prompt: sha256[:10] do texto fixo (sem o contexto do relógio). Trace e eval a usam."""
+    return hashlib.sha256(_static_prompt().encode()).hexdigest()[:10]
 
 
 def _first_name(name: str) -> str:

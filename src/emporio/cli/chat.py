@@ -8,11 +8,9 @@ import traceback
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from emporio.agent import turn_log
 from emporio.agent.failures import describe
 from emporio.agent.graph import Agent
 from emporio.agent.session import Session, SQLiteSessionStore, new_session_id
-from emporio.agent.types import TurnResult
 from emporio.cli import codes
 from emporio.cli.text import COMMANDS, HELP, MAX_CHARS, UNEXPECTED_MESSAGE, sanitize, scrub
 from emporio.cli.ui import Ui
@@ -31,7 +29,6 @@ class Chat:
         *,
         clock: Clock,
         store: SQLiteSessionStore | None = None,
-        log_turns: bool = False,
         read_line: Callable[[str], str] | None = None,
     ) -> None:
         self.agent = agent
@@ -39,7 +36,6 @@ class Chat:
         self.ui = ui
         self._clock = clock
         self._store = store  # None na demo: nada é gravado
-        self._log_turns = log_turns
         self._read_line = read_line or input
 
     # --- um turno ------------------------------------------------------------------------------
@@ -75,7 +71,6 @@ class Chat:
                 traceback.print_exc()
             return codes.UNEXPECTED
         ui.idle()
-        self._record(result)
         ui.reply(result.text)
         if ui.trace:
             ui.turn_summary(result)
@@ -83,8 +78,6 @@ class Chat:
 
     def _provider_failure(self, error: LLMError) -> int:
         failure = describe(error)
-        if self._log_turns:
-            turn_log.write(turn_log.failure_record(self.session.id, error, self._clock.now()))
         if failure.misconfigured:
             self.ui.error(
                 f"a OpenAI recusou a requisição ({scrub(str(error))}). "
@@ -94,10 +87,6 @@ class Chat:
         self.ui.reply(failure.message)
         self.ui.note(f"  [provedor] {type(error).__name__}: {scrub(str(error))}. {NOT_SAVED}", "33")
         return codes.UNAVAILABLE
-
-    def _record(self, result: TurnResult) -> None:
-        if self._log_turns:
-            turn_log.write(turn_log.turn_record(self.session.id, result, self._clock.now()))
 
     # --- comandos de sessão --------------------------------------------------------------------
 

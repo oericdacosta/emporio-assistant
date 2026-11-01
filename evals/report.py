@@ -38,6 +38,7 @@ class Meta:
     prompt_hash: str
     repeat: int
     prices: Prices | None = None
+    experiment: str | None = None  # nome/link no LangSmith; None = rodada só local
 
 
 def _total(reports: list[CaseReport]) -> Usage:
@@ -76,6 +77,7 @@ def render(reports: list[CaseReport], meta: Meta) -> str:
         f"# Relatório de avaliação — {meta.when:%Y-%m-%d %H:%M}",
         "",
         f"- modelo: `{meta.model}` | commit: `{meta.commit}` | hash do prompt: `{meta.prompt_hash}` | execuções por caso: {meta.repeat}",
+        f"- experimento LangSmith: {meta.experiment or 'nenhum (rodada local)'}",
         f"- **aprovados: {passed}/{len(reports)}** (reprovam só as verificações HARD)",
         f"- **regressão: {_suite_line(reports, 'regression')}** (tem de ficar em 100%) | "
         f"capacidade: {_suite_line(reports, 'capability')} (casos difíceis, ainda não dominados)",
