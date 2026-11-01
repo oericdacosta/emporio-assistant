@@ -88,6 +88,8 @@ def _banner(
     ui: Ui, model: str, clock: Clock, fixed: bool, session: Session, db: str, *, interactive: bool
 ) -> None:
     ui.note(f"Empório da Música - {AGENT_NAME}, assistente virtual", "1")
+    if fixed and not ui.trace:
+        ui.note(f"  Relógio de demonstração: {format_moment(clock.now())}")
     if ui.trace:  # os detalhes da execução só interessam a quem pediu o trace
         state = f"retomada, {len(session.history)} mensagens" if session.history else "nova"
         ui.note(f"  modelo {model} (OpenAI) | sessão {session.id} ({state}; histórico em {db})")

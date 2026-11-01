@@ -70,7 +70,15 @@ def test_banner_is_short_and_lists_the_commands(
     assert run(["--now", "2026-02-20T10:00"], ["/sair"]) == 0
     err = capsys.readouterr().err
     assert "/ajuda  /novo  /esquecer  /trace  /sair" in err
-    assert "modelo" not in err and "relógio" not in err  # detalhes só com --trace
+    assert "Relógio de demonstração: sexta-feira, 20/02/2026 10:00" in err  # relógio congelado
+    assert "modelo" not in err  # os detalhes da execução só aparecem com --trace
+
+
+def test_banner_does_not_mention_the_clock_when_it_is_the_real_one(
+    run: Run, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert run([], ["/sair"]) == 0
+    assert "Relógio" not in capsys.readouterr().err
 
 
 def test_trace_banner_declares_model_and_clock(
