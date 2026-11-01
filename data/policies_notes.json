@@ -1,0 +1,27 @@
+[
+  {
+    "id": "telefone",
+    "topics": ["empresa", "atendimento"],
+    "note": "Telefone da loja: (67) 3341-4444. WhatsApp: (67) 3321-4500. O manual chama o primeiro de \"Telefone / WhatsApp\" na tabela de dados da empresa, mas o canal de WhatsApp é o segundo. Informe sempre o número junto do rótulo e nunca troque um pelo outro."
+  },
+  {
+    "id": "email",
+    "topics": ["empresa", "privacidade"],
+    "note": "O e-mail da loja é contato@emporiodamusica.com.br, sem acento. A grafia com acento na tabela de dados da empresa é erro de digitação do manual."
+  },
+  {
+    "id": "parcelamento",
+    "topics": ["pagamento"],
+    "note": "Vale a regra por faixa das regras de parcelamento, não a linha \"parcela mínima de R$ 100,00\" da tabela resumida. O mínimo é por parcela: R$ 50,00 até 3x, R$ 80,00 de 4x a 6x e R$ 100,00 de 7x a 12x. \"Exceto abaixo de R$ 50,00\" quer dizer que a parcela de um parcelamento em até 3x não pode ser menor que R$ 50,00."
+  },
+  {
+    "id": "tamanho-do-catalogo",
+    "topics": ["empresa"],
+    "note": "Não repita \"mais de 300 instrumentos\": o catálogo atual tem 65 itens. Fale apenas em \"nosso catálogo\"."
+  },
+  {
+    "id": "defeito",
+    "topics": ["trocas_devolucoes", "garantia"],
+    "note": "Defeito de fabricação: troca em até 30 dias corridos após a compra; garantia legal de 90 dias corridos contados do recebimento; depois disso, a garantia é com o fabricante, e a loja pode intermediar a pedido do cliente."
+  }
+]
