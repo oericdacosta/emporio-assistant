@@ -14,7 +14,7 @@ from streamlit.testing.v1 import AppTest  # noqa: E402
 
 from emporio import observability  # noqa: E402
 from emporio.errors import ProviderUnavailable  # noqa: E402
-from emporio.web import logic, metrics  # noqa: E402
+from emporio.web import examples, logic, metrics  # noqa: E402
 from support.fakes import FakeLLM, say, use  # noqa: E402
 
 APP = str(Path(__file__).resolve().parents[2] / "src" / "emporio" / "web" / "app.py")
@@ -23,6 +23,7 @@ EXAMPLE = logic.EXAMPLES[2]  # "Que horas a loja abre?"
 
 @pytest.fixture(autouse=True)
 def sandbox(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(examples, "EXAMPLES_DIR", tmp_path / "sem-exemplos")  # só o chat conta
     monkeypatch.chdir(tmp_path)  # history/ e logs/ ficam no tmp, e o .env real não é lido
     for name in ("OPENAI_API_KEY", "LLM_MODEL", "AGENT_NOW", "EMPORIO_HISTORY_DB"):
         monkeypatch.delenv(name, raising=False)
@@ -65,7 +66,7 @@ def test_example_click_shows_the_answer_and_tool_details(monkeypatch: pytest.Mon
     assert [m.name for m in at.chat_message] == ["user", "assistant"]
     assert "Abrimos às 9h." in texts(at)
     assert not any("Detalhes" in e.label for e in at.expander)  # o chat fica limpo
-    assert [t.label for t in at.tabs] == ["Conversa"]
+    assert [t.label for t in at.tabs] == ["Conversa", "Exemplos"]
     assert not [b for b in at.main.button if b.label in logic.EXAMPLES]  # exemplos somem
 
 
@@ -133,7 +134,7 @@ class FakeRuns:
 
 def test_evaluator_mode_off_shows_only_the_chat_tab() -> None:
     at = start()
-    assert [t.label for t in at.tabs] == ["Conversa"]
+    assert [t.label for t in at.tabs] == ["Conversa", "Exemplos"]
 
 
 def test_evaluator_mode_adds_the_metrics_tab_and_moves_the_details_there(
@@ -147,7 +148,7 @@ def test_evaluator_mode_adds_the_metrics_tab_and_moves_the_details_there(
     at.button(key=f"ex-{EXAMPLE}").click().run()
     at = evaluator_mode(at)
     assert not at.exception
-    assert [t.label for t in at.tabs] == ["Conversa", "Métricas"]
+    assert [t.label for t in at.tabs] == ["Conversa", "Exemplos", "Métricas"]
     assert not fake.calls  # nada é lido do LangSmith antes do clique
     assert any("Clique em **Atualizar**" in i.value for i in at.info)
     at = refresh(at)
@@ -259,3 +260,14 @@ def test_feedback_widget_only_with_active_tracing_and_callback_never_raises(
     assert not at.exception and len(sent) == 1 and sent[0][1] == 1.0
     assert any("Não consegui registrar sua avaliação" in c.value for c in at.caption)
     assert at.feedback[0].value == 1  # o estado fica na mensagem
+
+
+def test_the_examples_tab_shows_the_recorded_conversations(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        examples, "EXAMPLES_DIR", Path(__file__).resolve().parents[2] / "examples" / "conversations"
+    )
+    at = start()
+    assert not at.exception
+    assert [t.label for t in at.tabs][:2] == ["Conversa", "Exemplos"]
+    assert len(examples.load_examples()) >= 3
+    assert any(e.label.startswith("Busca no catálogo") for e in at.expander)
