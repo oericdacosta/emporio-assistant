@@ -135,9 +135,11 @@ def test_stock_is_only_disclosed_when_low(registry: ToolRegistry, ctx: ToolConte
 
 def test_no_product_id_is_hardcoded_in_the_source() -> None:
     pattern = re.compile(r"\b(96|130|136)\b")
+    exit_codes = SRC / "emporio" / "cli" / "codes.py"  # 130 é o código de saída do Ctrl-C
     offenders = [
         f"{path.relative_to(SRC)}:{number}"
         for path in SRC.rglob("*.py")
+        if path != exit_codes
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
         if pattern.search(line)
     ]

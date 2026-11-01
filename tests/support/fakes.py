@@ -12,7 +12,7 @@ from emporio.llm.base import LLMResponse, Message, ToolCall, ToolChoice, ToolSpe
 
 _ids = count(1)
 
-Step = LLMResponse | Callable[[list[Message]], LLMResponse] | Exception
+Step = LLMResponse | Callable[[list[Message]], LLMResponse] | BaseException
 
 
 @dataclass
@@ -52,7 +52,7 @@ class FakeLLM:
         if not self._steps:
             raise AssertionError(f"o agente fez a chamada {len(self.calls)}, mas o roteiro acabou")
         step = self._steps.pop(0)
-        if isinstance(step, Exception):
+        if isinstance(step, BaseException):
             raise step
         if callable(step):
             return step(list(messages))

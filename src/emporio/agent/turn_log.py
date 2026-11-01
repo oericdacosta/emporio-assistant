@@ -22,20 +22,21 @@ LOGGER_NAME: Final = "emporio.turns"
 _SECRET_ARGUMENTS: Final = frozenset({"proof", "contact"})
 
 
-def _mask(value: Any) -> Any:
+def mask(value: Any) -> Any:
+    """Máscara para qualquer coisa que vá a log ou a trace: e-mail, telefone etc. e o que identifica o cliente."""
     if isinstance(value, str):
         return redact(value)
     if isinstance(value, dict):
-        return {k: "***" if k in _SECRET_ARGUMENTS else _mask(v) for k, v in value.items()}
+        return {k: "***" if k in _SECRET_ARGUMENTS else mask(v) for k, v in value.items()}
     if isinstance(value, list):
-        return [_mask(item) for item in value]
+        return [mask(item) for item in value]
     return value
 
 
 def _tool(record: ToolRecord) -> dict[str, Any]:
     return {
         "name": record.name,
-        "arguments": _mask(record.arguments),
+        "arguments": mask(record.arguments),
         "ok": record.ok,
         "error": record.error_code,
         "ms": round(record.seconds * 1000),
