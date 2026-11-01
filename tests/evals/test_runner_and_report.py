@@ -228,3 +228,29 @@ def test_the_suite_flag_selects_only_that_suite(
     monkeypatch.setattr(run_module, "make_llm", lambda model, env: passing_llm())
     assert run_module.main(["--only", "G01", "--suite", "capability", "--out", str(cli)]) == 3
     assert "nenhum caso" in capsys.readouterr().err
+
+
+def test_the_report_says_what_the_guard_blocked_and_which_tools_ran(
+    by_id: dict[str, Case], repo: CsvRepository, policies: PolicyStore
+) -> None:
+    llm = FakeLLM(
+        use("get_product", name="gd20"),
+        say("O GD20 sai por R$ 1.999,00."),
+        say("O GD20 sai por R$ 2.199,00."),
+    )
+    reports = run_suite([by_id["G01-preco-takamine-gd20"]], llm, repo, policies)
+    text = render(reports, Meta("m", datetime(2026, 3, 23), "n/a", "x", 1))
+    assert '- tools: get_product({"name": "gd20"}) ✓' in text
+    assert "- guarda barrou R$ 1.999,00: «O GD20 sai por R$ 1.999,00.»" in text
+
+
+def test_a_partial_run_does_not_overwrite_the_full_report_of_the_day(
+    monkeypatch: pytest.MonkeyPatch, cli: Path
+) -> None:
+    monkeypatch.setattr(run_module, "make_llm", lambda model, env: passing_llm())
+    assert run_module.main(["--only", "G01", "--out", str(cli)]) == 0
+    monkeypatch.setattr(run_module, "make_llm", lambda model, env: FakeLLM(*[say("x")] * 3))
+    assert run_module.main(["--only", "M01", "--suite", "capability", "--out", str(cli)]) == 0
+    names = sorted(p.name for p in cli.glob("*.md"))
+    assert len(names) == 2
+    assert names[0].endswith("_fake-model.md") and names[1].endswith("_fake-model_capability.md")
