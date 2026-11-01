@@ -39,13 +39,21 @@ def build_examples(cases: Sequence[Case]) -> list[dict[str, Any]]:
 
 
 def sync(client: Any, cases: Sequence[Case]) -> int:
-    """Cria o dataset se faltar, faz o upsert dos exemplos e remove os de casos que saíram."""
+    """Cria o dataset se faltar, cria os exemplos novos, atualiza os que já existem e remove os
+    de casos que saíram. ``create_examples`` com id fixo devolve 409 se o exemplo já existe, então
+    o upsert é feito à mão: criar só o que falta, atualizar o resto."""
     if not client.has_dataset(dataset_name=DATASET):
         client.create_dataset(DATASET, description="Casos de referência do Téo (evals/golden.yaml)")
     examples = build_examples(cases)
-    client.create_examples(dataset_name=DATASET, examples=examples)
-    keep = {e["id"] for e in examples}
-    stale = [e.id for e in client.list_examples(dataset_name=DATASET) if e.id not in keep]
+    existing = {str(e.id) for e in client.list_examples(dataset_name=DATASET)}
+    new = [e for e in examples if str(e["id"]) not in existing]
+    if new:
+        client.create_examples(dataset_name=DATASET, examples=new)
+    for e in examples:
+        if str(e["id"]) in existing:
+            client.update_example(e["id"], inputs=e["inputs"], metadata=e["metadata"])
+    keep = {str(e["id"]) for e in examples}
+    stale = [e for e in existing if e not in keep]
     if stale:
         client.delete_examples(stale)
     return len(examples)

@@ -51,31 +51,48 @@ def test_build_examples_is_pure_and_stable(cases: list[Case]) -> None:
     assert len({e["id"] for e in first}) == len(cases)
 
 
-def test_sync_creates_the_dataset_upserts_and_drops_stale_examples(cases: list[Case]) -> None:
-    calls: list[tuple[str, Any]] = []
-
+def _fake_client(existing: list[Any], calls: list[tuple[str, Any]], *, has: bool) -> Any:
     class Fake:
         def has_dataset(self, **kw: Any) -> bool:
-            return False
+            return has
 
         def create_dataset(self, name: str, **kw: Any) -> None:
             calls.append(("create", name))
 
         def create_examples(self, **kw: Any) -> None:
-            calls.append(("upsert", len(kw["examples"])))
+            ids = {str(e.id) for e in existing}
+            assert not any(str(e["id"]) in ids for e in kw["examples"]), "409 no serviço real"
+            calls.append(("new", len(kw["examples"])))
+
+        def update_example(self, example_id: Any, **kw: Any) -> None:
+            calls.append(("update", str(example_id)))
 
         def list_examples(self, **kw: Any) -> list[Any]:
-            return [SimpleNamespace(id="velho")]
+            return existing
 
         def delete_examples(self, ids: Any) -> None:
             calls.append(("delete", list(ids)))
 
-    assert sync_dataset.sync(Fake(), cases) == len(cases)
-    assert calls == [
-        ("create", "emporio-golden"),
-        ("upsert", len(cases)),
-        ("delete", ["velho"]),
-    ]
+    return Fake()
+
+
+def test_first_sync_creates_the_dataset_and_every_example(cases: list[Case]) -> None:
+    calls: list[tuple[str, Any]] = []
+    assert sync_dataset.sync(_fake_client([], calls, has=False), cases) == len(cases)
+    assert calls == [("create", "emporio-golden"), ("new", len(cases))]
+
+
+def test_a_second_sync_updates_instead_of_creating_and_drops_stale_examples(
+    cases: list[Case],
+) -> None:
+    """Regressão real: o 2º create_examples com id fixo dava 409 e o eval caía em modo local."""
+    calls: list[tuple[str, Any]] = []
+    built = sync_dataset.build_examples(cases)
+    existing = [SimpleNamespace(id=e["id"]) for e in built] + [SimpleNamespace(id="velho")]
+    assert sync_dataset.sync(_fake_client(existing, calls, has=True), cases) == len(cases)
+    assert [c for c, _ in calls].count("new") == 0
+    assert [c for c, _ in calls].count("update") == len(cases)
+    assert calls[-1] == ("delete", ["velho"])
 
 
 def test_hard_and_soft_evaluators(
