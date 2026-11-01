@@ -7,6 +7,7 @@ ainda pagam R$ 35,00.
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from dataclasses import dataclass
 from decimal import Decimal
@@ -22,6 +23,22 @@ LARGE_ITEM_CATEGORY_NAMES: Final = frozenset(
     {"baterias e percussao"}
 )  # nome da categoria, sem acento
 CARRIERS: Final = RULES.carriers
+
+
+# Destinos fora do Brasil que reconhecemos (nomes sem acento). Lista curta de propósito: cidade
+# estrangeira que não está aqui passa como cidade brasileira; quem decide é a equipe.
+FOREIGN_PLACES: Final = frozenset(
+    {"exterior", "internacional", "eua", "usa", "estados unidos", "united states"}
+    | {"portugal", "argentina", "paraguai", "bolivia", "uruguai", "chile", "espanha"}
+    | {"inglaterra", "reino unido", "peru", "colombia", "venezuela", "mexico", "canada"}
+    | {"miami", "orlando", "nova york", "new york", "lisboa", "madri", "madrid", "paris"}
+    | {"londres", "buenos aires", "montevideu", "montevideo", "assuncao", "asuncion"}
+    | {"pedro juan caballero", "ciudad del este", "santa cruz de la sierra"}
+)
+# "Franca" (SP) é cidade brasileira: só "França" com cedilha conta
+_FOREIGN_RE: Final = re.compile(
+    r"\b(?:" + "|".join(sorted(map(re.escape, FOREIGN_PLACES), key=len, reverse=True)) + r")\b"
+)
 
 
 class Zone(StrEnum):
@@ -45,6 +62,11 @@ def normalize_text(city: str) -> str:
         c for c in unicodedata.normalize("NFD", city.casefold()) if unicodedata.category(c) != "Mn"
     )
     return " ".join(folded.split())
+
+
+def is_foreign_destination(city: str) -> bool:
+    """O texto cita um destino fora do Brasil da lista ``FOREIGN_PLACES`` (ou "França")."""
+    return bool(_FOREIGN_RE.search(normalize_text(city))) or "frança" in city.casefold()
 
 
 def is_large_item(category_name: str) -> bool:

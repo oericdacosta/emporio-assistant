@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
+
+import pytest
 
 from emporio.clock import FixedClock
 from emporio.data.policies import Topic
@@ -93,3 +96,98 @@ def test_policy_topic_limits(registry: ToolRegistry, ctx: ToolContext) -> None:
     assert call(registry, ctx, "search_policy", topics=["devolver"])["ok"] is False
     everything = call(registry, ctx, "search_policy", topics=["todos"])["data"]["sections"]
     assert len(everything) == 10
+
+
+@pytest.mark.parametrize("question", ["prazo de devolução", "aceitam cartão de débito?"])
+def test_policy_coverage_covered(registry: ToolRegistry, ctx: ToolContext, question: str) -> None:
+    data = call(registry, ctx, "search_policy", topics=["todos"], question=question)["data"]
+    assert data["coverage"] == "covered" and data["unmatched_terms"] == [] and "note" not in data
+    assert len(data["sections"]) == 10  # as seções ficam como sempre
+
+
+@pytest.mark.parametrize(
+    ("question", "term"),
+    [
+        ("vocês têm estacionamento?", "estacionamento"),
+        ("aceitam cachorro na loja?", "cachorro"),
+        ("vocês emitem nota fiscal?", "nota"),
+    ],
+)
+def test_policy_coverage_flags_what_the_manual_does_not_treat(
+    registry: ToolRegistry, ctx: ToolContext, question: str, term: str
+) -> None:
+    data = call(registry, ctx, "search_policy", topics=["empresa"], question=question)["data"]
+    assert data["coverage"] in ("none", "partial") and term in data["unmatched_terms"]
+    if data["coverage"] == "none":
+        assert "não trata de" in data["note"] and "register_complaint" in data["note"]
+    else:  # partial: responde só com o manual, sem mandar registrar reclamação
+        assert "não afirme nada sobre" in data["note"] and "register_complaint" not in data["note"]
+
+
+def policy(registry: ToolRegistry, ctx: ToolContext, question: str) -> dict[str, Any]:
+    return call(registry, ctx, "search_policy", topics=["frete_entrega"], question=question)["data"]
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Qual o prazo de entrega pra Corumbá?",
+        "E pra Miami, quanto é o prazo de entrega?",
+        "A garantia da Takamine cobre defeito?",
+        "Qual o prazo de entrega do violão Tagima Memphis?",
+    ],
+)
+def test_proper_nouns_and_catalog_terms_do_not_count_as_uncovered(
+    registry: ToolRegistry, ctx: ToolContext, question: str
+) -> None:
+    data = policy(registry, ctx, question)
+    assert data["coverage"] != "none" and "register_complaint" not in data.get("note", "")
+
+
+@pytest.mark.parametrize(
+    "question", ["Tem banheiro, café e wi-fi na loja?", "Aceitam ar-condicionado e animais?"]
+)
+def test_facilities_stay_uncovered_and_ask_for_the_team(
+    registry: ToolRegistry, ctx: ToolContext, question: str
+) -> None:
+    data = policy(registry, ctx, question)
+    assert data["coverage"] == "none" and "register_complaint" in data["note"]
+
+
+def test_a_partial_note_is_mild_and_does_not_send_to_the_team(
+    registry: ToolRegistry, ctx: ToolContext
+) -> None:
+    """K01/K04: o manual cita queda; o que sobra é "chão", e isso não vira reclamação."""
+    data = policy(registry, ctx, "A garantia cobre se o violão cair no chão?")
+    assert data["coverage"] == "partial" and "cair" not in data["unmatched_terms"]
+    assert data["note"].startswith("Responda só com o que o manual diz")
+    assert "register_complaint" not in data["note"]
+
+
+def test_policy_coverage_falls_back_to_the_customer_turn_text(
+    registry: ToolRegistry, ctx: ToolContext
+) -> None:
+    said = replace(ctx, user_text="tem estacionamento?")
+    assert call(registry, said, "search_policy", topics=["empresa"])["data"]["coverage"] == "none"
+    assert call(registry, ctx, "search_policy", topics=["empresa"])["data"]["coverage"] == "covered"
+
+
+@pytest.mark.parametrize(
+    "city", ["Dourados", "Manaus", "Campo Grande", "Franca", "Londrina", "Parisópolis"]
+)
+def test_brazilian_cities_get_a_normal_quote(
+    registry: ToolRegistry, ctx: ToolContext, city: str
+) -> None:
+    assert call(registry, ctx, "estimate_shipping", city=city)["ok"]
+
+
+@pytest.mark.parametrize(
+    "city",
+    ["Miami", "MIAMI, Flórida", "Ciudad del Este", "Nova York", "Lisboa", "Paraguai", "França",
+     "Pedro Juan Caballero", "exterior", "Estados Unidos", "Assunção"],
+)  # fmt: skip
+def test_foreign_destinations_are_refused_without_a_quote(
+    registry: ToolRegistry, ctx: ToolContext, city: str
+) -> None:
+    result = call(registry, ctx, "estimate_shipping", city=city)
+    assert result["error"]["code"] == "unsupported_destination" and "data" not in result
