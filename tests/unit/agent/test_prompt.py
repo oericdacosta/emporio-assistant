@@ -5,6 +5,7 @@ from datetime import datetime
 
 import pytest
 
+from emporio.agent import prompt
 from emporio.agent.prompt import PLACEHOLDER, build_system_prompt
 from emporio.clock import FixedClock
 from emporio.data.policies import Topic
@@ -152,3 +153,14 @@ def test_clock_is_required_not_read_from_the_system() -> None:
     now: datetime = FixedClock.parse(OPEN).now()
     with pytest.raises(TypeError):
         build_system_prompt(store_status(now))  # type: ignore[call-arg]
+
+
+def test_prompt_version_is_stable_ignores_the_clock_and_changes_with_the_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    version = prompt.prompt_version()
+    assert len(version) == 10 and version == prompt.prompt_version()
+    prompt_at("2026-03-23T10:00:00")
+    assert version == prompt.prompt_version()  # o relógio não entra
+    monkeypatch.setattr(prompt, "_static_prompt", lambda: "outro texto")
+    assert prompt.prompt_version() != version

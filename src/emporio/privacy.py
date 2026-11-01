@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Final
+from typing import Any, Final
 
 _PATTERNS: Final = (
     (re.compile(r"\b\d(?:[ -]?\d){12,15}\b"), "[cartao]"),  # antes do CPF e do telefone
@@ -19,3 +19,17 @@ def redact(text: str) -> str:
     for pattern, marker in _PATTERNS:
         text = pattern.sub(marker, text)
     return text
+
+
+_SECRET_ARGUMENTS: Final = frozenset({"proof", "contact"})
+
+
+def mask(value: Any) -> Any:
+    """Máscara só para EXIBIR trace e detalhes na tela: dados pessoais e o que identifica o cliente."""
+    if isinstance(value, str):
+        return redact(value)
+    if isinstance(value, dict):
+        return {k: "***" if k in _SECRET_ARGUMENTS else mask(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [mask(item) for item in value]
+    return value

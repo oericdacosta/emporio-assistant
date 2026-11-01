@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import sqlite3
 from collections.abc import Callable
 from pathlib import Path
@@ -45,7 +44,6 @@ def run(monkeypatch: pytest.MonkeyPatch, paths: dict[str, Path]) -> Run:
             "OPENAI_API_KEY": "chave-de-teste",
             "LLM_MODEL": "modelo-x",
             "EMPORIO_HISTORY_DB": str(paths["db"]),
-            "EMPORIO_TURN_LOG": str(paths["log"]),
         }
         model = llm or FakeLLM()
         return main(args, env=env if env is not None else base, llm_factory=lambda m, e: model)
@@ -121,7 +119,6 @@ def test_clock_can_come_from_the_environment(
         "LLM_MODEL": "m",
         "AGENT_NOW": "2026-03-23T10:00",
         "EMPORIO_HISTORY_DB": str(paths["db"]),
-        "EMPORIO_TURN_LOG": str(paths["log"]),
     }
     assert run(["--trace"], ["/sair"], env=env) == 0
     assert "segunda-feira, 23/03/2026 10:00" in capsys.readouterr().err
@@ -301,22 +298,6 @@ def test_unexpected_error_hides_the_stack_unless_debug(
     assert "Algo deu errado do meu lado" in cap.out and "Traceback" not in cap.err
     run(["--debug"], ["oi", "/sair"], FakeLLM(RuntimeError("bug interno")))
     assert "Traceback" in capsys.readouterr().err
-
-
-# --- registro de turnos ------------------------------------------------------------------------
-
-
-def test_each_turn_is_logged_without_the_conversation_text(
-    run: Run, paths: dict[str, Path]
-) -> None:
-    llm = FakeLLM(
-        use("get_product", name="gd20"), say("Sai por R$ 2.199,00."), ProviderUnavailable("x")
-    )
-    run(["--session", "s1"], ["quanto custa o gd20?", "e agora?", "/sair"], llm)
-    lines = [json.loads(line) for line in paths["log"].read_text(encoding="utf-8").splitlines()]
-    assert [line["event"] for line in lines] == ["turn", "llm_failure"]
-    assert lines[0]["session_id"] == "s1" and lines[0]["tools"][0]["name"] == "get_product"
-    assert "gd20?" not in json.dumps(lines) and "2.199" not in json.dumps(lines)
 
 
 def test_unknown_command_suggests_the_closest_one(

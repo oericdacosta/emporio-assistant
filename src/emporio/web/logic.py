@@ -5,7 +5,6 @@ Tudo aqui é testável sem navegador. ``web/app.py`` só desenha.
 
 from __future__ import annotations
 
-import os
 import sqlite3
 from collections.abc import Callable, Mapping
 from contextlib import closing
@@ -13,7 +12,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final, Literal
 
-from emporio.agent import turn_log
 from emporio.agent.failures import describe
 from emporio.agent.graph import Agent
 from emporio.agent.session import Session, SQLiteSessionStore, new_session_id
@@ -27,6 +25,7 @@ from emporio.errors import ConfigError, LLMError
 from emporio.identity import IdentityVerifier
 from emporio.llm.base import LLMClient
 from emporio.llm.factory import make_llm
+from emporio.privacy import mask
 
 # ponto substituível nos testes (a UI nunca chama a OpenAI neles)
 make_llm_for_ui: Callable[[str | None, Mapping[str, str]], LLMClient] = make_llm
@@ -157,17 +156,6 @@ def forget(runtime: Runtime) -> None:
     runtime.session = Session(runtime.session.id)
 
 
-_configured = False
-
-
-def ensure_turn_log(env: Mapping[str, str] = os.environ) -> None:
-    """Liga o registro de turnos uma única vez por processo (o Streamlit reroda o script)."""
-    global _configured
-    if not _configured:
-        turn_log.configure(Path(env.get("EMPORIO_TURN_LOG", "logs/turns.jsonl")))
-        _configured = True
-
-
 # --- um turno ----------------------------------------------------------------------------------
 
 
@@ -183,14 +171,14 @@ class WebReply:
 def turn_details(result: TurnResult, finished: list[ToolFinished]) -> dict[str, Any]:
     tools = []
     for i, record in enumerate(result.tools):
-        summary = summarize(turn_log.mask(finished[i].result)) if i < len(finished) else ""
+        summary = summarize(mask(finished[i].result)) if i < len(finished) else ""
         tools.append(
             {
                 "name": record.name,
                 "ok": record.ok,
                 "error": record.error_code,
                 "ms": round(record.seconds * 1000),
-                "arguments": turn_log.mask(record.arguments),
+                "arguments": mask(record.arguments),
                 "summary": summary,
             }
         )
@@ -204,8 +192,7 @@ def turn_details(result: TurnResult, finished: list[ToolFinished]) -> dict[str, 
         "trace_id": result.trace_id,
         "fallback": result.fallback,
         "guard_blocks": [
-            {"draft": turn_log.mask(b.draft), "violations": list(b.violations)}
-            for b in result.guard_blocks
+            {"draft": mask(b.draft), "violations": list(b.violations)} for b in result.guard_blocks
         ],
     }
 
@@ -231,8 +218,6 @@ def run_one_turn(
     runtime: Runtime,
     text: str,
     on_event: Callable[[Event], None] | None = None,
-    *,
-    log_turns: bool = False,
 ) -> WebReply:
     """Um turno, como ``Chat.turn``: só um turno bem-sucedido é gravado e entra no histórico."""
     session, finished = runtime.session, []
@@ -248,14 +233,8 @@ def run_one_turn(
         with _store(runtime.db, runtime.clock) as store:
             if store:
                 store.save(session, result.new_messages)
-    except LLMError as error:
-        if log_turns:
-            turn_log.write(turn_log.failure_record(session.id, error, runtime.clock.now()))
-        return WebReply(friendly_error(error), "error", error=error)
     except Exception as error:
         return WebReply(friendly_error(error), "error", error=error)
-    if log_turns:
-        turn_log.write(turn_log.turn_record(session.id, result, runtime.clock.now()))
     kind: Kind = "fallback" if result.fallback else "answer"
     return WebReply(
         result.text, kind, turn_details(result, finished), saved=runtime.db != IN_MEMORY

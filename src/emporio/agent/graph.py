@@ -18,14 +18,17 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
-from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
+from langsmith import traceable, uuid7
 
+from emporio import observability
 from emporio.agent.grounding import FALLBACK_MESSAGE, Ledger, correction_message
+from emporio.agent.prompt import prompt_version
 from emporio.agent.session import Session
 from emporio.agent.steps import finish, run_tools
 from emporio.agent.types import (
@@ -196,8 +199,33 @@ class Agent[C]:
         text = text.strip()
         if not text:
             raise ValueError("a mensagem do cliente está vazia")
+        run_id = uuid7()  # o id do run no LangSmith é o trace_id do turno
+        return self._traced_turn(
+            session,
+            text,
+            on_event,
+            str(run_id),
+            langsmith_extra={"run_id": run_id, "metadata": self._turn_metadata(session)},
+        )
+
+    def _turn_metadata(self, session: Session) -> dict[str, str]:
+        metadata = {"session_id": session.id, "model": str(getattr(self._llm, "model", "?"))}
+        with suppress(Exception):
+            clock = getattr(self._make_ctx(session), "clock", None)
+            if clock is not None:
+                metadata["clock"] = clock.now().isoformat(timespec="seconds")
+        return metadata
+
+    @traceable(
+        name="turno",
+        run_type="chain",
+        process_inputs=lambda inputs: {"text": inputs.get("text")},
+        process_outputs=lambda result: {"text": getattr(result, "text", None)},
+    )
+    def _traced_turn(
+        self, session: Session, text: str, on_event: EventHook | None, trace_id: str
+    ) -> TurnResult:
         started = time.perf_counter()
-        trace_id = uuid4().hex[:12]
         user = Message("user", text)
         meter = Meter()
         initial: TurnState = {
@@ -219,4 +247,18 @@ class Agent[C]:
             config={"recursion_limit": 3 * self._config.max_iterations + 5},
             context=TurnContext(session, on_event),
         )
-        return finish(session, user, final["text"], final["outcome"], meter, trace_id, started)
+        result = finish(session, user, final["text"], final["outcome"], meter, trace_id, started)
+        observability.annotate(
+            {
+                "outcome": result.outcome.value,
+                "guard_blocked": result.guard_blocked,
+                "llm_calls": result.llm_calls,
+                "input_tokens": result.usage.input_tokens,
+                "output_tokens": result.usage.output_tokens,
+                "cached_tokens": result.usage.cached_tokens,
+                "tools": [t.name for t in result.tools],
+                "tool_errors": [f"{t.name}:{t.error_code}" for t in result.tools if not t.ok],
+                "prompt_hash": prompt_version(),
+            }
+        )
+        return result

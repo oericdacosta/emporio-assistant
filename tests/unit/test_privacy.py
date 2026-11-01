@@ -19,3 +19,12 @@ from emporio.privacy import redact
 )
 def test_redact(raw: str, expected: str) -> None:
     assert redact(raw) == expected
+
+
+def test_mask_hides_secrets_and_personal_data_for_display() -> None:
+    from emporio.privacy import mask
+
+    masked = mask(
+        {"proof": "a@b.com", "summary": "ligue (67) 99812-3456", "n": 4, "l": ["a@b.com"]}
+    )
+    assert masked == {"proof": "***", "summary": "ligue [telefone]", "n": 4, "l": ["[email]"]}

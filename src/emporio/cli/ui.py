@@ -9,9 +9,9 @@ import sys
 import textwrap
 from typing import Any, TextIO
 
-from emporio.agent.turn_log import mask
 from emporio.agent.types import Event, ToolFinished, ToolStarted, TurnResult
 from emporio.cli.text import AGENT_NAME, TOOL_LABELS, summarize
+from emporio.privacy import mask
 
 MAX_WIDTH = 100  # largura máxima do texto do Téo em terminal largo
 MIN_WIDTH = 40

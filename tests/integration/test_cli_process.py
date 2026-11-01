@@ -71,7 +71,6 @@ def test_end_of_input_leaves_the_conversation_with_exit_0(
         "OPENAI_API_KEY": "chave-de-teste",
         "LLM_MODEL": "modelo-x",
         "EMPORIO_HISTORY_DB": ":memory:",
-        "EMPORIO_TURN_LOG": str(tmp_path / "t.jsonl"),
     }
     result = emporio(env=env, cwd=tmp_path)  # stdin vazio: Ctrl-D logo de início
     assert result.returncode == 0
