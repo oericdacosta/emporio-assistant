@@ -1,0 +1,43 @@
+{
+  "slug": "02-preco-e-parcelamento",
+  "title": "Preço de um produto e condições de pagamento",
+  "kind": "Preço e pagamento",
+  "note": "O preço vem do catálogo; as parcelas e o Pix são calculados em código, não pelo modelo.",
+  "now": "2026-03-23T10:00:00-04:00",
+  "model": "gpt-4.1-mini",
+  "recorded_on": "2026-11-01",
+  "commit": "a6dbffc",
+  "prompt_version": "26b9b13d76",
+  "turns": [
+    {
+      "user": "Quanto custa o Takamine GD20?",
+      "assistant": "O Takamine GD20 Dreadnought Natural custa R$ 2.199,00, ou R$ 2.089,05 no PIX. Quer saber as opções de parcelamento?",
+      "tools": [
+        {
+          "name": "get_product",
+          "arguments": {
+            "name": "Takamine GD20"
+          },
+          "ok": true
+        }
+      ],
+      "guard_blocked": false,
+      "fallback": false
+    },
+    {
+      "user": "Dá pra parcelar em 10x? E no Pix tem desconto?",
+      "assistant": "No cartão, dá para parcelar em até 12x, e em 10x fica 10x de R$ 219,90 sem juros. No PIX tem 5% de desconto, saindo por R$ 2.089,05. Quer mais alguma coisa?",
+      "tools": [
+        {
+          "name": "calculate_payment_options",
+          "arguments": {
+            "product_id": 95
+          },
+          "ok": true
+        }
+      ],
+      "guard_blocked": false,
+      "fallback": false
+    }
+  ]
+}

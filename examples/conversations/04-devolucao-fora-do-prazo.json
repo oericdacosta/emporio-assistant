@@ -1,0 +1,56 @@
+{
+  "slug": "04-devolucao-fora-do-prazo",
+  "title": "Devolução por arrependimento (aplica a política)",
+  "kind": "Política e pedido (não trivial)",
+  "note": "Pede a prova de identidade, verifica o pedido e confere o prazo de 7 dias contra a data de recebimento.",
+  "now": "2026-03-23T10:00:00-04:00",
+  "model": "gpt-4.1-mini",
+  "recorded_on": "2026-11-01",
+  "commit": "a6dbffc",
+  "prompt_version": "26b9b13d76",
+  "turns": [
+    {
+      "user": "Me arrependi da minha compra, posso devolver meu pedido?",
+      "assistant": "Pode sim! Você tem até 7 dias corridos após receber o produto para pedir a devolução, sem precisar justificar. O produto precisa estar na embalagem original, sem uso e com todos os acessórios. Para eu ajudar, me passa o número do pedido e o e-mail do cadastro (ou os 4 últimos dígitos do telefone)?",
+      "tools": [
+        {
+          "name": "search_policy",
+          "arguments": {
+            "topics": [
+              "trocas_devolucoes"
+            ],
+            "question": "posso devolver meu pedido por arrependimento?"
+          },
+          "ok": true
+        }
+      ],
+      "guard_blocked": false,
+      "fallback": false
+    },
+    {
+      "user": "É o pedido 7, recebi dia 17/02. Meu e-mail é leticia.rocha@jmail.com",
+      "assistant": "Letícia, o prazo para devolução por arrependimento venceu em 24/02/2026, então não dá para fazer a devolução nesse caso. Quer que eu encaminhe sua situação para a equipe analisar?",
+      "tools": [
+        {
+          "name": "verify_customer",
+          "arguments": {
+            "order_id": 7,
+            "proof": "leticia.rocha@jmail.com"
+          },
+          "ok": true
+        },
+        {
+          "name": "check_return_eligibility",
+          "arguments": {
+            "order_id": 7,
+            "reason": "regret",
+            "received_on": "2026-02-17"
+          },
+          "ok": true
+        }
+      ],
+      "guard_blocked": false,
+      "fallback": false
+    }
+  ]
+}
