@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
+from emporio.agent.grounding import parse_user_amounts
 from emporio.data.repository import CsvRepository
 from emporio.data.search import MAX_LIMIT, SearchHit, normalize, rank_products, search_products
 from emporio.domain.availability import Availability, disclosable_stock, product_availability
@@ -18,6 +19,7 @@ from emporio.domain.pricing import (
     installment_options,
     max_installments,
     money,
+    pix_subtotal,
     price_for,
     quote,
     subtotal,
@@ -91,7 +93,25 @@ class SearchProductsParams(Params):
     limit: int = Field(default=5, ge=1, le=MAX_LIMIT)
 
 
+def _check_price_provenance(ctx: ToolContext, args: SearchProductsParams) -> None:
+    """Teto e piso de preço só valem se o cliente disse o valor (o modelo não os inventa).
+
+    Sem falas do cliente no contexto (chamada direta, sem conversa) não há o que conferir."""
+    if not ctx.user_texts:
+        return
+    said = set().union(*(parse_user_amounts(t) for t in ctx.user_texts))
+    for name in ("min_price_brl", "max_price_brl"):
+        value = getattr(args, name)
+        if value is not None and money(value) not in said:
+            raise ToolError(
+                "unsupported_filter",
+                f"o cliente não informou o valor de {name} ({brl(value)})",
+                "O cliente não informou esse valor; busque sem o filtro de preço ou pergunte a faixa.",
+            )
+
+
 def search_products_tool(ctx: ToolContext, args: SearchProductsParams) -> dict[str, Any]:
+    _check_price_provenance(ctx, args)
     slugs = category_slugs(ctx.repo)
     if args.category is not None and args.category not in slugs:
         raise ToolError(
@@ -129,6 +149,15 @@ def search_products_tool(ctx: ToolContext, args: SearchProductsParams) -> dict[s
             f"Há {result.total_matches} produtos ao todo e só {shown} foram mostrados: "
             "diga o total e ofereça filtrar ou ver mais."
         )
+    if result.sort != args.sort:
+        data["sorted_by"] = result.sort  # "barato"/"em conta" na consulta pede o menor preço
+    if result.relaxed:
+        data["relaxed"] = list(result.relaxed)
+        data["note"] = (
+            data.get("note", "")
+            + " Não achei com todos os filtros; mostrando o mais próximo "
+            + f"(descartado: {', '.join(result.relaxed)}). Diga isso ao cliente."
+        ).strip()
     if result.candidates:
         data["candidates"] = _candidates(result.candidates)
     if result.unavailable:
@@ -194,17 +223,23 @@ def _find(ctx: ToolContext, name: str) -> Product | list[SearchHit]:
     return hits[0].product if len(tied) == 1 else tied[:MAX_LIMIT]
 
 
+def resolve_product(
+    ctx: ToolContext, product_id: int | None, name: str | None
+) -> Product | list[SearchHit]:
+    """O produto por id ou nome; lista de candidatos se o nome for ambíguo."""
+    if product_id is not None:
+        return require_product(ctx, product_id)
+    return _find(ctx, name or "")
+
+
 def get_product_tool(ctx: ToolContext, args: GetProductParams) -> dict[str, Any]:
-    if args.product_id is not None:
-        product = require_product(ctx, args.product_id)
-    else:
-        found = _find(ctx, args.name or "")
-        if isinstance(found, list):
-            return {
-                "candidates": _candidates(found),
-                "note": "Mais de um produto combina com o nome; pergunte ao cliente qual deles.",
-            }
-        product = found
+    found = resolve_product(ctx, args.product_id, args.name)
+    if isinstance(found, list):
+        return {
+            "candidates": _candidates(found),
+            "note": "Mais de um produto combina com o nome; pergunte ao cliente qual deles.",
+        }
+    product = found
 
     price = quote(product, ctx.repo.promotions_for(product.id))
     data = {
@@ -234,6 +269,23 @@ class PaymentParams(Params):
         return self
 
 
+def _plans(total: Decimal) -> list[dict[str, Any]]:
+    plans = []
+    for option in installment_options(total):
+        plan = f"{option.n}x de {brl(option.installment)}"
+        if option.last_installment != option.installment:
+            plan += f" (a última de {brl(option.last_installment)})"
+        plans.append(
+            {
+                "installments": f"{option.n}x",
+                "installment_brl": brl(option.installment),
+                "total_brl": brl(option.total),
+                "plan": plan,
+            }
+        )
+    return plans
+
+
 def calculate_payment_options_tool(ctx: ToolContext, args: PaymentParams) -> dict[str, Any]:
     extra: dict[str, Any] = {}
     if args.product_id is not None:
@@ -252,19 +304,7 @@ def calculate_payment_options_tool(ctx: ToolContext, args: PaymentParams) -> dic
         pix = price_for(total).pix_price
         pix_note = "5% de desconto sobre o valor informado, tratado como preço de tabela"
 
-    plans = []
-    for option in installment_options(total):
-        plan = f"{option.n}x de {brl(option.installment)}"
-        if option.last_installment != option.installment:
-            plan += f" (a última de {brl(option.last_installment)})"
-        plans.append(
-            {
-                "installments": f"{option.n}x",
-                "installment_brl": brl(option.installment),
-                "total_brl": brl(option.total),
-                "plan": plan,
-            }
-        )
+    plans = _plans(total)
     combined = combined_payment_allowed(total)
     return {
         **extra,
@@ -282,6 +322,67 @@ def calculate_payment_options_tool(ctx: ToolContext, args: PaymentParams) -> dic
             if combined
             else "Combinar formas de pagamento só é permitido em compras acima de R$ 2.000,00."
         ),
+    }
+
+
+# --- calculate_cart_total ----------------------------------------------------------------------
+
+
+class CartItem(Params):
+    product_id: int | None = Field(default=None, ge=1)
+    name: str | None = Field(default=None, min_length=1)
+    quantity: int = Field(default=1, ge=1, le=20)
+
+    @model_validator(mode="after")
+    def _one_identifier(self) -> CartItem:
+        if (self.product_id is None) == (self.name is None):
+            raise ValueError("informe product_id ou name em cada item, só um dos dois")
+        return self
+
+
+class CartParams(Params):
+    items: list[CartItem] = Field(min_length=1, max_length=10)
+
+
+def calculate_cart_total_tool(ctx: ToolContext, args: CartParams) -> dict[str, Any]:
+    lines: list[tuple[Price, int]] = []
+    view: list[dict[str, Any]] = []
+    for item in args.items:
+        found = resolve_product(ctx, item.product_id, item.name)
+        if isinstance(found, list):
+            raise ToolError(
+                "ambiguous_product",
+                f"mais de um produto combina com '{item.name}'",
+                "Pergunte ao cliente qual: "
+                + "; ".join(f"{h.product.name} (id {h.product.id})" for h in found),
+            )
+        if availability_label(found) not in ("in_stock", "low_stock"):
+            raise ToolError(
+                "product_unavailable",
+                f"{found.name} não está à venda agora",
+                "Use get_product para ver as alternativas e avise o cliente.",
+            )
+        unit = quote(found, ctx.repo.promotions_for(found.id))
+        lines.append((unit, item.quantity))
+        view.append(
+            {
+                "product_id": found.id,
+                "name": found.name,
+                "quantity": item.quantity,
+                "unit_price_brl": brl(unit.price),
+                "promo_percent": None if unit.promo_percent is None else f"{unit.promo_percent}%",
+                "subtotal_brl": brl(subtotal([(unit, item.quantity)])),
+            }
+        )
+    total = subtotal(lines)
+    pix = pix_subtotal(lines)
+    return {
+        "lines": view,
+        "total_brl": brl(total),
+        "pix_total_brl": brl(pix) if pix < total else None,
+        "pix_note": "5% de desconto só sobre os itens sem promoção",
+        "max_installments": f"{max_installments(total)}x",
+        "installments": _plans(total),
     }
 
 
@@ -318,5 +419,15 @@ def tools(repo: CsvRepository) -> list[Tool[Any]]:
             "faça essas contas você mesmo.",
             PaymentParams,
             calculate_payment_options_tool,
+        ),
+        Tool(
+            "calculate_cart_total",
+            "Total de uma compra com VÁRIOS itens (ou várias unidades): linhas com preço "
+            "unitário vigente e subtotal, total, total no PIX (5% só nos itens sem promoção) "
+            "e parcelas do total. USE sempre que o cliente quiser somar produtos ou perguntar "
+            "o total do carrinho. NÃO use para um item só (use get_product ou "
+            "calculate_payment_options). Nunca some preços você mesmo.",
+            CartParams,
+            calculate_cart_total_tool,
         ),
     ]

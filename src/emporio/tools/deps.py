@@ -19,3 +19,5 @@ class ToolContext:
     session: SessionGuard = field(default_factory=SessionGuard)  # quem está falando, por sessão
     identity: IdentityVerifier = field(default_factory=IdentityVerifier)  # compartilhado
     complaints_log: Path = Path("logs/complaints.jsonl")
+    user_text: str = ""  # a fala do cliente neste turno
+    user_texts: tuple[str, ...] = ()  # todas as falas do cliente na conversa, a atual por último

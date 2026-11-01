@@ -28,3 +28,10 @@ def test_mask_hides_secrets_and_personal_data_for_display() -> None:
         {"proof": "a@b.com", "summary": "ligue (67) 99812-3456", "n": 4, "l": ["a@b.com"]}
     )
     assert masked == {"proof": "***", "summary": "ligue [telefone]", "n": 4, "l": ["[email]"]}
+
+
+def test_extract_contact_prefers_the_latest_message() -> None:
+    from emporio.privacy import extract_contact
+
+    assert extract_contact(["a@b.com", "me liga (67) 99999-1234"]) == "(67) 99999-1234"
+    assert extract_contact(["sem nada", "pedido 12"]) is None

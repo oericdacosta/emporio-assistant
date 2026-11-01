@@ -70,6 +70,15 @@ def normalize(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text).strip()
 
 
+# Qualificadores subjetivos não são termos do catálogo: viram sinal ou saem da consulta. Só saem se
+# a palavra não existir no catálogo (o nome "Rozini RC-104 Nylon Estudante" continua buscável).
+_CHEAP: Final = re.compile(r"\b(?:barat[oa]s?|em conta|economic[oa]s?)\b")
+_SUBJECTIVE: Final = frozenset(
+    {"iniciante", "iniciantes", "bom", "boa", "bons", "boas", "otimo", "otima", "otimos"}
+    | {"otimas", "melhor", "melhores", "simples", "basico", "basica", "bonito", "bonita"}
+)
+
+
 def looks_like_accessory(text: str) -> bool:
     """A loja só vende instrumentos: corda, palheta, cabo, pedal, amplificador e capa são acessórios.
 
@@ -113,6 +122,8 @@ class SearchResult:
     unknown_category: bool = False
     # indisponíveis que casam com a busca melhor do que qualquer item disponível
     unavailable: tuple[SearchHit, ...] = ()
+    relaxed: tuple[str, ...] = ()  # termos da consulta descartados para achar algo
+    sort: SortOrder = "relevance"  # a ordem aplicada (barato/em conta vira price_asc)
 
 
 class _Index:
@@ -209,6 +220,41 @@ def rank_products(
     return hits
 
 
+def _strip_qualifiers(index: _Index, query: str) -> tuple[str, bool]:
+    """A consulta sem os qualificadores subjetivos e se algum pedia preço baixo."""
+    text, cheap = normalize(query), False
+
+    def drop_cheap(match: re.Match[str]) -> str:
+        nonlocal cheap
+        if any(w in index.idf for w in match[0].split()):
+            return match[0]
+        cheap = True
+        return " "
+
+    text = _CHEAP.sub(drop_cheap, text)
+    words = [w for w in text.split() if w not in _SUBJECTIVE or w in index.idf]
+    return " ".join(words), cheap
+
+
+def _relaxations(
+    index: _Index, query: str, category: str | None
+) -> Iterable[tuple[str, str | None, list[str]]]:
+    """Consultas cada vez mais frouxas, só dentro da categoria já resolvida.
+
+    1) sem as palavras que não existem no catálogo; 2) só a categoria. A terceira coluna é o que
+    cada passo descarta, acumulado."""
+    words = index.query_tokens(query)
+    unknown = [w for w in words if w not in index.idf]
+    known = [w for w in words if w in index.idf]
+    if unknown and known:
+        yield " ".join(known), category, unknown
+    cat_word = next((w for w in known if index.category_ids(w)), None)
+    resolved = category if category is not None else cat_word
+    rest = [w for w in known if w != cat_word or category is not None]
+    if resolved is not None and (unknown or rest):
+        yield "", resolved, unknown + rest
+
+
 def search_products(
     repo: CsvRepository,
     query: str = "",
@@ -220,21 +266,37 @@ def search_products(
     sort: SortOrder = "relevance",
     limit: int = 5,
 ) -> SearchResult:
-    ranked = rank_products(
-        repo,
-        query,
-        category=category,
-        min_price=min_price,
-        max_price=max_price,
-        only_available=only_available,
-        sort=sort,
-    )
-    unknown = category is not None and not _index_for(repo).category_ids(category)
+    index = _index_for(repo)
+    query, cheap = _strip_qualifiers(index, query)
+    if cheap and sort == "relevance":
+        sort = "price_asc"
+
+    def rank(q: str, cat: str | None) -> list[SearchHit]:
+        return rank_products(
+            repo,
+            q,
+            category=cat,
+            min_price=min_price,
+            max_price=max_price,
+            only_available=only_available,
+            sort=sort,
+        )
+
+    unknown = category is not None and not index.category_ids(category)
+    ranked = rank(query, category)
+    relaxed: tuple[str, ...] = ()
+    if not ranked and not unknown:
+        for relaxed_query, relaxed_category, dropped in _relaxations(index, query, category):
+            if ranked := rank(relaxed_query, relaxed_category):
+                query, category, relaxed = relaxed_query, relaxed_category, tuple(dropped)
+                break
     return SearchResult(
         hits=tuple(ranked[: max(1, min(limit, MAX_LIMIT))]),
         total_matches=len(ranked),
         candidates=_tied_candidates(ranked) if _tokens(query) and sort == "relevance" else (),
         unknown_category=unknown,
+        relaxed=relaxed,
+        sort=sort,
         unavailable=_better_but_unavailable(repo, query, ranked, category, min_price, max_price)
         if only_available
         else (),

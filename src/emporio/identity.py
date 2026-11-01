@@ -12,7 +12,7 @@ from __future__ import annotations
 import hmac
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Final
 
@@ -46,6 +46,8 @@ class SessionGuard:
     customer_id: int | None = None
     failures: int = 0
     locked_until: datetime | None = None
+    # contato (normalizado) -> (protocolo, resumo): evita protocolo duplicado na mesma conversa
+    complaints: dict[str, tuple[str, str]] = field(default_factory=dict)
 
     def locked(self, now: datetime) -> bool:
         return self.locked_until is not None and now < self.locked_until

@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Sequence
+import unicodedata
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Final, Self
+from typing import Final, Literal, Self
 
 from emporio.data.repository import DataLoadError
 from emporio.paths import default_data_dir
@@ -65,6 +66,76 @@ TOPIC_HELP: Final = {
 }
 
 
+# Cobertura lexical: pergunta do cliente contra o manual inteiro. Regras, não semântica.
+_WORD: Final = re.compile(r"[a-z0-9]+")
+_STOP: Final = frozenset(
+    """
+    a o as os um uma uns umas de do da dos das em no na nos nas por para pra com sem sobre ate ao
+    aos e ou mas que se como qual quais quanto quantos quantas quando onde quem porque porque
+    eu voce voces vc vcs ele ela eles elas meu minha meus minhas seu sua seus suas nosso nossa
+    me te lhe nos isso isto esse essa esses essas aquele aquela aqui ali la ja so tambem mais
+    menos muito muita pouco bem mal sim nao oi ola bom boa dia tarde noite obrigado obrigada
+    ser sou e eh foi era sao esta estao estou tem tenho temos tinha ter vai vou ir ha fazer faz
+    pode podem posso podemos poderia queria quero quer gostaria gostei saber dizer diz falar
+    fala informar informa ver veja olha preciso precisa precisar ajuda ajudar duvida pergunta
+    algum alguma alguns algumas algo todo toda todos todas tipo coisa coisas isso tudo
+    loja lojas empresa voces pessoal gente favor pois entao agora hoje ainda sempre nunca
+    existe existem tipos aceitam vendem trabalham funciona fazem fazemos
+    """.split()  # noqa: SIM905
+)  # "aceitam"/"vendem"/"trabalham": verbos de pergunta; o substantivo é que decide a cobertura
+# o cliente diz "cair"; o manual diz "queda". "ar-condicionado" perde o "ar" (curto) e o radical
+# de "condicionado" colidiria com "condições".
+_SYNONYMS: Final = {
+    "cair": "queda",
+    "cai": "queda",
+    "caiu": "queda",
+    "caindo": "queda",
+    "condicionado": "arcondicionado",
+}
+_PROPER_NOUN: Final = re.compile(r"(?<=[\wÀ-ÿ,]\s)[A-ZÀ-Ý][\wÀ-ÿ]+")
+_STEM: Final = 6  # truncar o radical junta plural, gênero e flexão verbal ("aceitam"/"aceitamos")
+
+Coverage = Literal["covered", "partial", "none"]
+
+
+def _unaccent(text: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", text.lower())
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
+def _stem(word: str) -> str:
+    for plural, singular in (("oes", "ao"), ("aes", "ao"), ("ais", "al"), ("eis", "el")):
+        if word.endswith(plural) and len(word) > 4:
+            word = word[: -len(plural)] + singular
+            break
+    else:
+        if word.endswith("s") and len(word) > 3:
+            word = word[:-1]
+    return word[:_STEM]
+
+
+def content_terms(text: str) -> list[tuple[str, str]]:
+    """(palavra, radical) dos termos de conteúdo: sem stopwords, curtos nem números/códigos."""
+    seen: dict[str, str] = {}
+    for word in _WORD.findall(_unaccent(text)):
+        if word in _STOP or len(word) < 3 or any(c.isdigit() for c in word):
+            continue
+        word = _SYNONYMS.get(word, word)
+        seen.setdefault(word, _stem(word))
+    return list(seen.items())
+
+
+def proper_nouns(question: str) -> list[str]:
+    """Palavras capitalizadas no meio da pergunta (cidades, marcas): nomes próprios."""
+    return _PROPER_NOUN.findall(question)
+
+
+@dataclass(frozen=True, slots=True)
+class PolicyCoverage:
+    level: Coverage
+    unmatched: tuple[str, ...] = ()
+
+
 @dataclass(frozen=True, slots=True)
 class PolicySection:
     number: int
@@ -90,6 +161,22 @@ class PolicyStore:
             )
             for m, end in zip(matches, ends, strict=True)
         )
+        everything = " ".join(f"{s.title} {s.text} {' '.join(s.notes)}" for s in self.sections)
+        self._vocabulary = frozenset(stem for _, stem in content_terms(everything))
+
+    def coverage(self, question: str, ignore_terms: Iterable[str] = ()) -> PolicyCoverage:
+        """Quanto da pergunta o manual inteiro (texto + notas) trata, por termos de conteúdo.
+
+        ``covered``: todos os termos aparecem; ``partial``: alguns; ``none``: nenhum. Lexical:
+        o termo no manual não prova que a pergunta foi respondida, só que o assunto existe.
+        Nomes próprios da pergunta e ``ignore_terms`` (nomes do catálogo) não contam.
+        """
+        skip = {s for _, s in content_terms(" ".join([*ignore_terms, *proper_nouns(question)]))}
+        terms = [(w, s) for w, s in content_terms(question) if s not in skip]
+        unmatched = tuple(word for word, stem in terms if stem not in self._vocabulary)
+        if not unmatched:
+            return PolicyCoverage("covered")
+        return PolicyCoverage("none" if len(unmatched) == len(terms) else "partial", unmatched)
 
     @classmethod
     def load(cls, directory: Path | None = None) -> Self:
