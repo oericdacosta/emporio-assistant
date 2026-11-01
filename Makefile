@@ -1,4 +1,4 @@
-.PHONY: install lint fmt type test cov clean
+.PHONY: install lint fmt type test cov policies clean
 
 install:
 	uv sync --locked
@@ -19,6 +19,9 @@ test:
 
 cov:
 	uv run pytest -q --cov=emporio --cov-branch --cov-report=term-missing
+
+policies:
+	uv run scripts/extract_policies.py data/raw/politicas_da_loja.pdf data/policies.md
 
 clean:
 	rm -rf .pytest_cache .mypy_cache .ruff_cache .hypothesis .coverage htmlcov dist build
