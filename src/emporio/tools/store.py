@@ -97,7 +97,8 @@ def tools() -> list[Tool[Any]]:
     return [
         Tool(
             "estimate_shipping",
-            "Frete e prazo por cidade de entrega. Campo Grande: taxa fixa ou frete grátis, "
+            "Frete e prazo por cidade de entrega. USE para 'quanto fica o frete pra X', "
+            "'entregam em X?' e qualquer prazo de entrega. Campo Grande: taxa fixa ou frete grátis, "
             "conforme o subtotal. Outras cidades: modalidades e prazos, SEM valor (depende "
             "de CEP, peso e dimensões; não invente). Item de grande porte fora de Campo "
             "Grande exige cotação. NÃO use para rastrear pedido.",
@@ -108,8 +109,8 @@ def tools() -> list[Tool[Any]]:
             "get_store_info",
             "Endereço, telefone e WhatsApp, e-mail, horário de funcionamento e se a loja está "
             "ABERTA AGORA, com o próximo horário de abertura. USE para 'onde fica', 'abre "
-            "sábado?', 'estão abertos?'. NÃO use para regras de troca, frete ou pagamento "
-            "(use search_policy).",
+            "sábado?', 'estão abertos?'. NÃO use para regras de troca ou pagamento (use "
+            "search_policy) nem para frete (use estimate_shipping).",
             StoreInfoParams,
             get_store_info_tool,
         ),
