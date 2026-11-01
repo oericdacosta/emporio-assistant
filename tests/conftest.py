@@ -93,3 +93,15 @@ def _hermetic(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -
         raise RuntimeError("rede bloqueada nos testes (use @pytest.mark.live)")
 
     monkeypatch.setattr(socket.socket, "connect", blocked)
+
+
+@pytest.fixture(autouse=True)
+def _no_tracing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tracing desligado e sem chave do LangSmith em todo teste."""
+    for name in list(os.environ):
+        if name.startswith("LANGCHAIN_") or name == "LANGSMITH_API_KEY":
+            monkeypatch.delenv(name)
+    monkeypatch.setenv("LANGSMITH_TRACING", "false")
+    from langsmith.utils import get_env_var
+
+    get_env_var.cache_clear()  # o SDK guarda o valor lido; sem isto um teste vaza para o outro
