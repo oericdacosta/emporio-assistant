@@ -61,7 +61,7 @@ Cada pedido do enunciado e onde ele está resolvido:
 | Repositório público com histórico real | 145 commits em 35 pull requests, validados pelo CI | [Histórico](https://github.com/oericdacosta/emporio-assistant/commits/main) |
 | Instruções para rodar | [Início rápido](#2-início-rápido): um comando, em qualquer sistema | abaixo |
 | Limitações conhecidas e o que faria com mais tempo | Documentadas com números, e um plano até a produção | [Limitações](docs/limitacoes-e-evolucao.md) |
-| **Uso de assistentes de código** | Claude Code como apoio à pesquisa, à conexão de informações e ao raciocínio sobre a orquestração e o planejamento; também o NotebookLM, para estudar papers, artigos e documentações; ideia, decisões, código e git são meus | [Uso de IA](docs/uso-de-ia.md) |
+| **Uso de assistentes de código** | Claude Code como revisor e avaliador do código e auxiliar na escrita, e apoio à pesquisa e ao raciocínio sobre a orquestração e o planejamento; também o NotebookLM, para estudar papers, artigos e documentações; a ideia e as decisões são minhas, e o Claude Code foi avaliador e revisor do código. | [Uso de IA](docs/uso-de-ia.md) |
 | 3 a 5 conversas de exemplo, ao menos uma não trivial | 5 conversas, com consulta a dados em tempo real e aplicação de regras | [Exemplos](#4-exemplos-de-conversa) |
 | Premissas documentadas para o que estava ambíguo | Tabela de suposições | [Premissas](#8-premissas-assumidas) |
 
@@ -356,15 +356,18 @@ O plano completo até a produção, com a arquitetura alvo, custo, escala, opera
 
 ## 11. Uso de assistentes de código
 
-A ideia, as decisões e o código são meus. Usei o **Claude Code** (Anthropic) como **apoio**, e não como
-autor: para **pesquisar e reunir informações**, **relacioná-las ao problema da loja** e como interlocutor para
-**raciocinar e idealizar a orquestração do agente e o planejamento do projeto**. **Também usei o NotebookLM**
+A ideia e as decisões são minhas. Usei o **Claude Code** (Anthropic) como **avaliador e revisor do código e
+como auxiliar na escrita**: ele não escreveu o projeto sozinho, e eu também não o escrevi sem ele. Ele
+revisou e avaliou o que eu fazia, apontou problemas e riscos, sugeriu melhorias e me ajudou a escrever
+trechos. Também o usei para **pesquisar e reunir informações**, **relacioná-las ao problema da loja** e
+como interlocutor para **raciocinar sobre a orquestração do agente e o planejamento do projeto**. **Também usei o NotebookLM**
 (Google) para **ler papers, artigos e documentações**, tirar dúvidas e **encontrar conexões** entre as
 fontes, o que me ajudou a planejar **o que fazer, quando fazer e como fazer** com as tecnologias que eu
 escolhi.
 
 O ponto de partida de cada etapa veio de mim; eu defini o escopo, **escolhi as tecnologias e as
-alternativas**, **escrevi o código**, os testes e os evals, e controlo o repositório: **branches, commits e
+alternativas**, **escrevi e revisei o código**, os testes e os evals com o auxílio do Claude Code, e
+controlo o repositório: **branches, commits e
 pull requests são feitos por mim**.
 
 O fluxo foi: planejar antes de codar, pesquisar com a data registrada (e estudar as fontes no NotebookLM),
@@ -416,7 +419,7 @@ CI). Detalhes, incluindo onde a IA não bastou, em [docs/uso-de-ia.md](docs/uso-
 | [docs/seguranca-e-privacidade.md](docs/seguranca-e-privacidade.md) | Modelo de ameaças, identidade, injeção de prompt, dados pessoais e LGPD |
 | [docs/avaliacao.md](docs/avaliacao.md) | Testes, golden, rodadas, testes de estresse, métricas e o que as falhas ensinaram |
 | [docs/limitacoes-e-evolucao.md](docs/limitacoes-e-evolucao.md) | Limitações, o que faria com mais tempo e o caminho até a produção |
-| [docs/uso-de-ia.md](docs/uso-de-ia.md) | Como o Claude Code (e também o NotebookLM) apoiaram a pesquisa e o planejamento, e quem fez o quê |
+| [docs/uso-de-ia.md](docs/uso-de-ia.md) | Como o Claude Code (revisor do código e auxiliar na escrita) e o NotebookLM apoiaram o trabalho, e quem fez o quê |
 | [evals/README.md](evals/README.md) | Como rodar e ler as avaliações |
 | [data/README.md](data/README.md) | Os dados e a proteção contra deriva do manual |
 
