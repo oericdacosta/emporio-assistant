@@ -3,12 +3,8 @@
 O desafio pede: *"caso faça uso de algum recurso de IA (Copilot, Claude, Cursor, etc.), explique qual a
 escolha e como utilizou. Queremos entender o seu workflow."* Este documento responde com franqueza.
 
-**Resumo.** A ideia, as decisões e o código são meus. Usei o **Claude Code** (Anthropic) como **apoio**, e
-não como autor: para **pesquisar e reunir informações**, **relacionar e conectar** o que eu encontrava com o
-problema da loja, e como interlocutor para **raciocinar e idealizar a orquestração do agente e o
-planejamento do projeto**. **Também usei o NotebookLM** (Google) para **ler papers, artigos e
-documentações**, tirar dúvidas e **encontrar conexões** entre essas fontes, o que me ajudou a planejar **o
-que fazer, quando fazer e como fazer** com as tecnologias que eu escolhi.
+**Resumo.** A ideia e as decisões são minhas. Usei o **Claude Code** (Anthropic) como **avaliador e revisor do
+código, e como auxiliar na escrita**: ele revisou e avaliou o que eu fazia, apontou problemas e riscos, sugeriu melhorias e me ajudou a escrever trechos, e eu decidia o que entrava. Também o usei para **pesquisar e reunir informações**, **relacionar** o que eu encontrava com o problema da loja, e como interlocutor para **raciocinar sobre a orquestração do agente e o planejamento do projeto**. **Também usei o NotebookLM** (Google) para **ler papers, artigos e documentações**, tirar dúvidas e **encontrar conexões** entre essas fontes, o que me ajudou a planejar **o que fazer, quando fazer e como fazer** com as tecnologias que eu escolhi.
 
 O ponto de partida de cada etapa veio de mim; a IA ajudou a pensar melhor e mais rápido sobre ele. O que
 importa aqui é **em que momentos** a usei e **o que fiz para não confiar cegamente nela**.
@@ -36,11 +32,14 @@ importa aqui é **em que momentos** a usei e **o que fiz para não confiar cegam
 O **Claude Code**, agente de linha de comando da Anthropic, trabalha dentro do repositório: lê o código e os
 dados, e pesquisa na web quando preciso. O papel dele, em ordem de importância para o projeto:
 
-1. **Pesquisa e levantamento de informação.** Comparar modelos, provedores, frameworks e abordagens, ler
+1. **Revisar e avaliar o código.** Ler o que eu escrevia, apontar defeitos, riscos e casos que eu não tinha
+   coberto, e sugerir melhorias. Também me **auxiliou a escrever** trechos do código, dos testes e da
+   documentação, que eu revisava, ajustava e decidia se entravam.
+2. **Pesquisa e levantamento de informação.** Comparar modelos, provedores, frameworks e abordagens, ler
    documentação, e registrar a data de cada consulta.
-2. **Relacionar as informações.** Ajudar a ligar o que a pesquisa trazia ao problema concreto da loja:
+3. **Relacionar as informações.** Ajudar a ligar o que a pesquisa trazia ao problema concreto da loja:
    dados, manual, riscos e restrições.
-3. **Raciocinar junto.** Servir de interlocutor para eu **idealizar a orquestração do agente** e o
+4. **Raciocinar junto.** Servir de interlocutor para eu **idealizar a orquestração do agente** e o
    **planejamento do projeto**: discutir as alternativas que eu levantava, apontar riscos e testar os meus
    argumentos.
 
@@ -62,9 +61,9 @@ projeto** e raciocinar sobre ele.
 
 ### O meu papel
 
-O resto, e o principal: **ter a ideia** e definir o problema e o escopo, **escolher as tecnologias**,
-**decidir entre as alternativas**, **escrever o código**, os testes e os evals, rodar os experimentos, e
-**controlar o repositório**.
+O principal: **ter a ideia** e definir o problema e o escopo, **escolher as tecnologias**, **decidir entre as
+alternativas**, **escrever e revisar o código**, os testes e os evals com o auxílio do Claude Code, rodar os
+experimentos e **controlar o repositório**. Nada entrava sem eu ler, entender e aceitar.
 
 ## 2. O fluxo de trabalho
 
@@ -84,8 +83,9 @@ flowchart TD
     K --> L["Merge na main"]
 ```
 
-A IA entrou sobretudo nas etapas **2, 3 e 8**: planejar, pesquisar, e pensar sobre a causa de um problema. A
-implementação, os testes e as medições foram trabalho meu. Na prática:
+A IA entrou nas etapas **2, 3 e 8** (planejar, pesquisar e pensar sobre a causa de um problema) e, na etapa
+**5**, como **revisora e auxiliar na escrita**: ela avaliava o que eu implementava e me ajudava em trechos. As
+decisões, a execução dos testes e das medições e o git foram meus. Na prática:
 
 1. **Planejar antes de codar.** Antes da primeira linha de código houve uma fase de planejamento, com
    relatórios por tema: requisitos, análise dos dados, arquitetura do agente, prompts, segurança e LGPD,
@@ -110,10 +110,11 @@ flowchart LR
     subgraph AUT["O autor: idealiza, decide, implementa e controla"]
         A1["Tem a ideia e define o problema, o escopo e as prioridades"]
         A2["Escolhe as tecnologias e decide entre as alternativas"]
-        A3["Escreve o código, os testes e os evals"]
+        A3["Escreve o código, os testes e os evals, com auxílio, e revisa tudo"]
         A4["Executa o git: branches, commits e pull requests"]
     end
-    subgraph IA["Claude Code: apoio à pesquisa e ao raciocínio"]
+    subgraph IA["Claude Code: revisor do código, auxiliar na escrita e apoio à pesquisa"]
+        I0["Revisa e avalia o código e ajuda a escrever"]
         I1["Pesquisa e reúne informações"]
         I2["Relaciona o que achou com o problema"]
         I3["Discute a orquestração e o planejamento"]
@@ -129,13 +130,15 @@ flowchart LR
     NB -->|"respostas com citação e conexões"| AUT
 ```
 
-Exemplos concretos do que ficou **com o autor**, e não com a IA:
+Exemplos concretos do que ficou **com o autor**:
 
 - **A orquestração.** A forma do turno (roteador antes do modelo, ferramentas determinísticas, guarda antes
   de responder, fallback) partiu de mim. A IA serviu para discutir e pressionar essa ideia, não para
   propô-la pronta.
-- **O código.** O domínio, as ferramentas, o grafo, a guarda, a CLI, a interface e os testes foram escritos
-  por mim.
+- **O código.** O domínio, as ferramentas, o grafo, a guarda, a CLI, a interface e os testes foram
+  escritos por mim **com o auxílio do Claude Code**, que revisava e avaliava o que eu fazia, apontava
+  problemas e sugeria melhorias, e me ajudava a escrever partes. Eu decidia o que entrava e revisava o
+  resultado.
 - **O git.** **Branches, commits e pull requests são meus**, e eu escolho o que entra em cada commit. Por isso
   o histórico segue o padrão do projeto (Conventional Commits, validado no CI).
 - **O que fica fora do repositório.** Decidi manter **fora** do repositório os relatórios de planejamento e
@@ -153,7 +156,7 @@ entrava no projeto sem passar por um destes filtros:
 ```mermaid
 flowchart TB
     IN["Informação e ideias discutidas com a IA"] --> D["Decisão do autor"]
-    D --> CODE["Código escrito pelo autor"]
+    D --> CODE["Código escrito pelo autor, com auxílio e revisão do Claude Code"]
     CODE --> V1["Testes: 864, sem rede, 90% de cobertura"]
     CODE --> V2["Tipos estritos e lint no CI"]
     CODE --> V3["Golden set: o agente inteiro, com o modelo real, 3 execuções"]
@@ -195,6 +198,8 @@ Um relato honesto de uso de IA inclui os limites dela. Alguns, reais:
 - **A IA conhece o que está no contexto.** Decisões que dependem de conhecimento do negócio (o que a loja
   aceita, o que o cliente real pergunta) precisam de gente da loja: aqui foram assumidas e documentadas em
   [dados-e-politicas.md](dados-e-politicas.md#9-suposições-assumidas).
+- **Um bom revisor também erra.** O Claude Code apontava problemas no código, mas nem toda sugestão era boa:
+  eu conferia cada uma contra os testes e os dados antes de aceitar.
 - **Um bom interlocutor não é um bom juiz.** Discutir com a IA ajudou a enxergar alternativas e riscos, mas o
   veredito sobre o que funciona veio dos testes e das medições, e mesmo assim restaram limites (veja
   [limitacoes-e-evolucao.md](limitacoes-e-evolucao.md)).
