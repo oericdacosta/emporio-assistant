@@ -155,7 +155,28 @@ quadrantChart
    ser respondida com o que o manual diz e encaminhada, nunca com a dedução.
 7. Ampliar a guarda para prazos em dias, datas e estoque, medindo o falso positivo no golden.
 8. Consertar as quatro regressões que as defesas criaram, com casos de golden próprios.
-9. Classificador leve de escopo como segunda camada do roteador, medido contra o golden.
+9. Proteção de entrada em camadas. Hoje o roteador de escopo é só de regras, e com mais tempo eu
+   evoluiria em dois sentidos:
+   - **Melhorar a camada de regex.** Tirar o que é específico demais (nomes próprios, listas fixas de
+     linguagens, pratos e tipos de texto) e escrever os padrões pela estrutura do pedido (verbo mais
+     objeto). Normalizar a fala antes de casar (acentos, caracteres invisíveis, letras separadas, palavras
+     com o miolo embaralhado, texto em Base64 ou hex), limitar o tamanho do texto contra ReDoS, derivar o
+     vocabulário da loja dos próprios CSVs e manter um conjunto de frases com rótulo, em português, para
+     medir falso positivo e falso negativo antes de cada mudança.
+   - **Acrescentar proteção em camadas com modelos menores.** As regras ficariam como primeira camada, barata
+     e previsível, e um modelo pequeno daria a segunda opinião só nas falas que elas não decidem (as que não
+     citam nada da loja nem trazem sinal claro de ataque), com falha aberta (se o modelo falhar, a conversa
+     segue) e dados pessoais trocados por marcadores antes de sair da máquina. O mesmo vale para a saída da
+     resposta. Caminhos a avaliar, sempre medidos no mesmo golden antes de adotar:
+     - **Jev** (TypeSafe AI), um modelo de decisão tipada: não gera texto, só devolve respostas dentro de um
+       esquema (decisões, classificações, probabilidades), pensado para guardrails de entrada e de saída.
+       É uma API hospedada, o que traz um provedor a mais.
+     - **Modelos parecidos com o Jev**, como o **Laya** (Convai Innovations, pesos abertos, que roda local e
+       precisaria de treino com exemplos em português) e classificadores de segurança, como o Llama Guard e o
+       Prompt Guard.
+     - **Um modelo pequeno e barato de uso geral**, chamado só nos casos incertos.
+     Em todos os casos, a escolha dependeria de português do Brasil, latência, custo, privacidade (o texto do
+     cliente sairia da loja) e limites de uso do provedor.
 
 ### Medição
 
