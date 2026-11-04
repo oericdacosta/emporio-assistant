@@ -50,5 +50,9 @@
       "guard_blocked": false,
       "fallback": false
     }
-  ]
+  ],
+  "number": 1,
+  "title_en": "Catalog search that continues across questions",
+  "scenario_en": "A customer looks for guitars within a budget, then asks follow-ups about the same list: the cheapest one, and the installments.",
+  "hood_en": "The assistant calls `search_products` once, with the category and the price ceiling, and the tool filters `products.csv` on category, price and `status == \"active\"` with stock. The follow-ups are answered from the conversation state, which remembers the products listed. The installment is never computed by the model: `calculate_payment_options` does it in code, with `Decimal`, so the number in the answer always comes from a tool."
 }

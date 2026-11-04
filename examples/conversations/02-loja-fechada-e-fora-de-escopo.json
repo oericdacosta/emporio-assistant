@@ -56,5 +56,9 @@
       "guard_blocked": false,
       "fallback": false
     }
-  ]
+  ],
+  "number": 2,
+  "title_en": "Closed store, out-of-scope accessory and back on topic",
+  "scenario_en": "The simulated clock is a Sunday. The customer asks if the store is open, asks for products the store does not sell, tries to extract the system prompt, and then goes back to a normal price question.",
+  "hood_en": "`get_store_info` computes open or closed from the injected clock (Sunday, closed, next opening Monday 9h), so the assistant never guesses the time. The accessories refusal follows a rule of the prompt (the store sells only instruments). The prompt-extraction attempt never reaches the model: the deterministic scope router recognizes it and returns a canned reply, with zero model calls. The conversation then continues normally, and `get_product` answers the price."
 }
