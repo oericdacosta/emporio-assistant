@@ -49,7 +49,7 @@ def test_a_failed_run_is_an_error_and_a_running_one_has_no_latency() -> None:
     failed.error = "boom"
     unfinished = run(1, 1)
     unfinished.end_time = None
-    assert metrics.turn_row(failed).outcome == "erro"
+    assert metrics.turn_row(failed).outcome == "error"
     assert metrics.turn_row(unfinished).latency_s is None
 
 
@@ -71,7 +71,7 @@ def test_rows_are_sorted_and_the_table_has_the_screen_columns() -> None:
     turns = metrics.rows([run(2, 1, tools=["a", "b"]), run(1, 1)])
     assert [t.trace_id for t in turns] == ["r1", "r2"]
     line = metrics.table(turns)[1]
-    assert line["tools"] == "a, b" and line["trace"] == "r2" and line["custo (US$)"] == 0.01
+    assert line["tools"] == "a, b" and line["trace"] == "r2" and line["cost (US$)"] == 0.01
 
 
 def test_fetch_filters_by_session_and_last_experiment_picks_the_newest() -> None:
@@ -98,8 +98,8 @@ def test_fetch_filters_by_session_and_last_experiment_picks_the_newest() -> None
 
 
 def test_formatters_use_the_brazilian_decimal_comma_and_dash_for_missing() -> None:
-    assert metrics.fmt_seconds(2.6) == "2,6 s" and metrics.fmt_seconds(None) == "-"
-    assert metrics.fmt_usd(0.0069) == "US$ 0,0069" and metrics.fmt_usd(None) == "-"
+    assert metrics.fmt_seconds(2.6) == "2.6 s" and metrics.fmt_seconds(None) == "-"
+    assert metrics.fmt_usd(0.0069) == "$0.0069" and metrics.fmt_usd(None) == "-"
     assert metrics.fmt_pct(0.0) == "0%" and metrics.fmt_pct(0.25) == "25%"
     assert metrics.cost_per_turn(metrics.Aggregates(4, 1.0, 2.0, 0.008, 0.0)) == 0.002
     assert metrics.cost_per_turn(metrics.Aggregates(0, None, None, 0.0, None)) is None
@@ -141,8 +141,8 @@ def test_by_tool_counts_calls_and_errors_ordered_by_errors() -> None:
         ]
     )
     assert metrics.by_tool(turns) == [
-        {"tool": "b", "chamadas": 2, "erros": 2, "taxa de erro": "100%"},
-        {"tool": "a", "chamadas": 2, "erros": 1, "taxa de erro": "50%"},
+        {"tool": "b", "calls": 2, "errors": 2, "error rate": "100%"},
+        {"tool": "a", "calls": 2, "errors": 1, "error rate": "50%"},
     ]
 
 
@@ -155,11 +155,11 @@ def test_by_prompt_groups_versions_and_old_turns_have_no_version() -> None:
         ]
     )
     lines = metrics.by_prompt(turns)
-    assert [x["versão do prompt"] for x in lines] == [metrics.NO_VERSION, "abc"]
+    assert [x["prompt version"] for x in lines] == [metrics.NO_VERSION, "abc"]
     abc = lines[1]
-    assert abc["turnos"] == 2 and abc["tempo mediano"] == "2,0 s"
-    assert abc["custo por turno"] == "US$ 0,0100" and abc["corrigidas pela guarda"] == "50%"
-    assert abc["resposta segura"] == "0%"
+    assert abc["turns"] == 2 and abc["median time"] == "2.0 s"
+    assert abc["cost per turn"] == "$0.0100" and abc["fixed by the guard"] == "50%"
+    assert abc["safe answer"] == "0%"
 
 
 def test_feedback_stats_are_read_and_missing_means_no_votes() -> None:
@@ -172,7 +172,7 @@ def test_feedback_stats_are_read_and_missing_means_no_votes() -> None:
         bare.feedback_stats = stats
         assert metrics.turn_row(bare).feedback_n == 0
     assert metrics.turn_row(run(2, 1)).feedback_n == 0  # sem o atributo
-    assert "feedback_stats" in metrics.SELECT and metrics.fmt_num(1.44) == "1,4"
+    assert "feedback_stats" in metrics.SELECT and metrics.fmt_num(1.44) == "1.4"
     assert metrics.fmt_num(None) == "-"
 
 

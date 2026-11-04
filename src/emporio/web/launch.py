@@ -28,8 +28,8 @@ def ensure_env(env: Path = ENV, example: Path = EXAMPLE) -> bool:
 def main(argv: Sequence[str] | None = None) -> int:
     if not ensure_env():
         print(
-            "Criei o arquivo .env. Abra-o, preencha OPENAI_API_KEY e LLM_MODEL "
-            "e rode o comando de novo."
+            "Created the .env file. Open it, fill in OPENAI_API_KEY and LLM_MODEL "
+            "and run the command again."
         )
         return 1
     extra = list(sys.argv[1:] if argv is None else argv)

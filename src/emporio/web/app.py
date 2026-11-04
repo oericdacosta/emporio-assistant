@@ -18,7 +18,7 @@ from emporio import __version__, envfile, observability
 from emporio.agent.session import Session, default_history_path, new_session_id
 from emporio.agent.types import Event, ToolStarted
 from emporio.app import check_data, load_data
-from emporio.cli.text import AGENT_NAME, MAX_CHARS, TOOL_LABELS, sanitize, scrub
+from emporio.cli.text import AGENT_NAME, MAX_CHARS, sanitize, scrub
 from emporio.data.repository import CsvRepository, DataLoadError
 from emporio.identity import IdentityVerifier
 from emporio.paths import default_data_dir
@@ -27,26 +27,45 @@ from emporio.web.examples import examples_tab
 from emporio.web.metrics_view import summary_section, turns_section
 from emporio.web.results import results_tab
 
-MODE_DEMO = "Data de demonstração (padrão: AGENT_NOW ou 2026-03-23 10:00)"
-MODE_REAL = "Agora (real)"
-MODE_PICK = "Escolher"
-NEW = "(nova conversa)"
-HELP_WEB = f"""**Como conversar com o {AGENT_NAME}**
+MODE_DEMO = "Demo date (default: AGENT_NOW or 2026-03-23 10:00)"
+MODE_REAL = "Now (real time)"
+MODE_PICK = "Pick"
+NEW = "(new conversation)"
 
-Escreva na caixa de baixo e aperte Enter (até {MAX_CHARS} caracteres), ou clique em um dos exemplos.
+# The progress labels shown while a tool runs. The CLI keeps its own Portuguese ones (cli/text.py).
+TOOL_LABELS_EN = {
+    "search_products": "searching the catalog",
+    "get_product": "looking up the product",
+    "calculate_payment_options": "calculating the payment options",
+    "calculate_cart_total": "adding up the cart",
+    "estimate_shipping": "checking the shipping",
+    "get_store_info": "checking the store information",
+    "search_policy": "consulting the store policies",
+    "verify_customer": "verifying the order details",
+    "get_order_status": "looking up the order",
+    "check_return_eligibility": "checking the exchange and return deadline",
+    "register_complaint": "registering the request",
+}
+NO_KEY_WARNING_EN = (
+    "LangSmith tracing is off: the LANGSMITH_API_KEY key is missing "
+    "(the service works normally; see .env.example)"
+)
+HELP_WEB = f"""**How to talk to {AGENT_NAME}**
 
-**Algumas ideias**
+Write in the box below and press Enter (up to {MAX_CHARS} characters), or click one of the examples. {AGENT_NAME} answers in Portuguese, so write to {AGENT_NAME} in Portuguese.
+
+**Some ideas** (in Portuguese)
 - Quais violões até R\\$ 1000?
 - Quanto custa o Takamine GD20?
 - Que horas a loja abre?
 - Quero devolver um pedido
 
-**Para falar de um pedido**, informe o número dele e o e-mail do cadastro (ou os 4 últimos dígitos do telefone). É assim que o {AGENT_NAME} confirma que o pedido é seu.
+**To talk about an order**, give its number and the e-mail on file (or the last 4 digits of the phone). That is how {AGENT_NAME} confirms the order is yours.
 
-**Nesta barra**
-- *Modo avaliador*: abre a aba Métricas (consultas de cada resposta, tokens, latência e custo).
-- *Nova conversa*: começa do zero; a anterior continua salva.
-- *Relógio*: a data de demonstração é a dos pedidos da loja."""
+**In this sidebar**
+- *Evaluator mode*: opens the Metrics tab (the queries of each answer, tokens, latency and cost).
+- *New conversation*: starts from scratch; the previous one stays saved.
+- *Clock*: the demo date is the one of the store's orders."""
 
 
 def state() -> MutableMapping[str, Any]:
@@ -78,27 +97,27 @@ def md(text: str) -> str:
 def render_details(details: dict[str, Any]) -> None:
     """Uma consulta por bloco: argumentos e resultado resumido (vai para a aba Métricas)."""
     for tool in details["tools"]:
-        status = "ok" if tool["ok"] else f"erro ({tool['error']})"
+        status = "ok" if tool["ok"] else f"error ({tool['error']})"
         st.markdown(f"**{tool['name']}** - {status} - {tool['ms']} ms")
         st.code(json.dumps(tool["arguments"], ensure_ascii=False), language="json")
         st.text(tool["summary"])
     if not details["tools"]:
-        st.caption("Nenhuma consulta neste turno.")
+        st.caption("No queries in this turn.")
     st.caption(
-        f"tokens entrada/saída/cache: {details['input_tokens']}/{details['output_tokens']}/"
-        f"{details['cached_tokens']} - {details['llm_calls']} chamada(s) ao modelo - "
+        f"tokens in/out/cache: {details['input_tokens']}/{details['output_tokens']}/"
+        f"{details['cached_tokens']} - {details['llm_calls']} model call(s) - "
         f"{details['ms']} ms - trace_id {details['trace_id']}"
     )
     for block in details["guard_blocks"]:
         st.warning(
             md(
-                "A guarda barrou uma resposta.\n\n"
-                f"Rascunho: {block['draft']}\n\n"
-                f"Sem origem nas consultas: {'; '.join(block['violations'])}"
+                "The guard blocked an answer.\n\n"
+                f"Draft: {block['draft']}\n\n"
+                f"Without a source in the queries: {'; '.join(block['violations'])}"
             )
         )
     if details["fallback"]:
-        st.warning("Foi enviada a resposta segura no lugar da resposta do modelo.")
+        st.warning("The safe answer was sent in place of the model's answer.")
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -121,11 +140,11 @@ def load_metrics(project: str, session_id: str) -> dict[str, Any]:
 def details_section(messages: list[dict[str, Any]]) -> None:
     """Os detalhes vêm da memória da conversa: aparecem mesmo sem o LangSmith."""
     detailed = [m for m in messages if m.get("details")]
-    with st.expander(f"Detalhes das consultas de cada turno ({len(detailed)})"):
+    with st.expander(f"Details of the queries of each turn ({len(detailed)})"):
         for message in detailed:
             render_details(message["details"])
         if not detailed:
-            st.caption("Nenhum turno ainda.")
+            st.caption("No turn yet.")
 
 
 def refresh_metrics() -> None:
@@ -137,17 +156,17 @@ def refresh_metrics() -> None:
 def metrics_tab(rt: logic.Runtime | None, messages: list[dict[str, Any]], tracing: str) -> None:
     """Aba do modo avaliador. Nada aqui pode derrubar a conversa."""
     st.info(
-        "Aqui aparecem as métricas das suas próprias conversas, lidas do seu LangSmith (precisa "
-        "de LANGSMITH_API_KEY no seu .env). Os resultados medidos pelo autor estão na aba Resultados."
+        "This shows the metrics of your own conversations, read from your LangSmith (it needs "
+        "LANGSMITH_API_KEY in your .env). The results measured by the author are in the Results tab."
     )
     if tracing == "ativo":  # fica no topo, antes e depois do clique
         st.info(
-            "Clique em **Atualizar** para ver os dados do LangSmith. Eles levam alguns segundos "
-            "para chegar depois de cada resposta."
+            "Click **Refresh** to see the LangSmith data. It takes a few seconds "
+            "to arrive after each answer."
         )
-    st.button("Atualizar", key="refresh-metrics", on_click=refresh_metrics)
+    st.button("Refresh", key="refresh-metrics", on_click=refresh_metrics)
     if tracing != "ativo":
-        st.info("LangSmith não configurado: defina LANGSMITH_API_KEY no .env (veja .env.example).")
+        st.info("LangSmith is not configured: set LANGSMITH_API_KEY in .env (see .env.example).")
         details_section(messages)
         return
     if rt is None:
@@ -159,8 +178,8 @@ def metrics_tab(rt: logic.Runtime | None, messages: list[dict[str, Any]], tracin
         data = load_metrics(metrics.project_name(), rt.session.id)
     except Exception as error:
         st.warning(
-            f"Não consegui ler o LangSmith agora ({type(error).__name__}: {scrub(str(error))[:200]}). "
-            "Tente Atualizar."
+            f"Could not read LangSmith right now ({type(error).__name__}: {scrub(str(error))[:200]}). "
+            "Try Refresh."
         )
         details_section(messages)
         return
@@ -168,11 +187,11 @@ def metrics_tab(rt: logic.Runtime | None, messages: list[dict[str, Any]], tracin
     details_section(messages)
     summary_section(
         data["period_rows"],
-        f"Últimos {metrics.PERIOD_DAYS} dias, até {metrics.PERIOD_LIMIT} turnos, em todas as conversas.",
+        f"Last {metrics.PERIOD_DAYS} days, up to {metrics.PERIOD_LIMIT} turns, across all conversations.",
     )
     if data["experiment"]:
         name, url = data["experiment"]
-        st.caption(f"Último experimento de avaliação: [{name}]({url})" if url else name)
+        st.caption(f"Latest evaluation experiment: [{name}]({url})" if url else name)
 
 
 def rate_turn(trace_id: str) -> None:
@@ -189,7 +208,7 @@ def rate_turn(trace_id: str) -> None:
 def feedback_widget(trace_id: str) -> None:
     st.feedback("thumbs", key=f"fb-{trace_id}", on_change=rate_turn, args=(trace_id,))
     if reason := state().get("fb_errors", {}).get(trace_id):
-        st.caption(f"Não consegui registrar sua avaliação agora ({reason}).")
+        st.caption(f"Could not record your rating right now ({reason}).")
 
 
 def render(message: dict[str, Any]) -> None:
@@ -227,15 +246,15 @@ def forget_chat() -> None:
 def sidebar() -> tuple[str, str, str | None, str, str, str | None]:
     """Devolve (modelo, chave, relógio ISO ou None, pasta dos dados, db, conversa a retomar)."""
     sb = st.sidebar
-    sb.header("Configuração")
-    model = sb.text_input("Modelo", value=os.environ.get("LLM_MODEL", ""), key="model")
+    sb.header("Settings")
+    model = sb.text_input("Model", value=os.environ.get("LLM_MODEL", ""), key="model")
     if env_key := os.environ.get("OPENAI_API_KEY"):
-        sb.success("Chave encontrada no ambiente")
+        sb.success("Key found in the environment")
         api_key = env_key
     else:
-        api_key = sb.text_input("Chave da OpenAI", type="password", key="api_key")
+        api_key = sb.text_input("OpenAI key", type="password", key="api_key")
 
-    mode = sb.radio("Relógio", [MODE_DEMO, MODE_REAL, MODE_PICK], key="clock_mode")
+    mode = sb.radio("Clock", [MODE_DEMO, MODE_REAL, MODE_PICK], key="clock_mode")
     demo_now = os.environ.get("AGENT_NOW") or logic.DEMO_NOW
     clock_text: str | None
     if mode == MODE_DEMO:
@@ -243,48 +262,46 @@ def sidebar() -> tuple[str, str, str | None, str, str, str | None]:
     elif mode == MODE_REAL:
         clock_text = None
     else:
-        day = sb.date_input("Data", value=date(2026, 3, 23), key="pick_date")
-        hour = sb.time_input("Hora", value=time(10, 0), key="pick_time")
+        day = sb.date_input("Date", value=date(2026, 3, 23), key="pick_date")
+        hour = sb.time_input("Time", value=time(10, 0), key="pick_time")
         clock_text = datetime.combine(day, hour).isoformat(timespec="minutes")
     sb.caption(
-        "Com a data real, quase nenhum pedido está dentro do prazo de devolução "
-        "(os pedidos de exemplo são de 2026)."
+        "With the real date, almost no order is within the return period "
+        "(the sample orders are from 2026)."
     )
     # Não é segurança: só esconde a aba para quem não é avaliador. Qualquer um liga o botão.
-    sb.toggle("Modo avaliador", key="evaluator_mode")
+    sb.toggle("Evaluator mode", key="evaluator_mode")
 
-    sb.button("Nova conversa", on_click=new_chat)
-    with sb.popover("Esquecer esta conversa"):
-        st.write("Apaga o histórico gravado desta conversa e a verificação de identidade.")
-        st.button("Sim, apagar", on_click=forget_chat)
+    sb.button("New conversation", on_click=new_chat)
+    with sb.popover("Forget this conversation"):
+        st.write("Erases the saved history of this conversation and the identity verification.")
+        st.button("Yes, erase", on_click=forget_chat)
 
-    with sb.expander("Avançado"):
+    with sb.expander("Advanced"):
         data_dir = logic.resolve_path(
-            st.text_input(
-                "Pasta dos dados", value=logic.show_path(default_data_dir()), key="data_dir"
-            )
+            st.text_input("Data folder", value=logic.show_path(default_data_dir()), key="data_dir")
         )
         db = logic.resolve_path(
             st.text_input(
-                "Arquivo do histórico (:memory: = nada é gravado)",
+                "History file (:memory: = nothing is saved)",
                 value=logic.show_path(default_history_path(os.environ)),
                 key="db",
             )
         )
         saved = logic.list_sessions(db)
-        labels = {s.id: f"{s.id} (última mensagem: {s.last_at})" for s in saved}
+        labels = {s.id: f"{s.id} (last message: {s.last_at})" for s in saved}
         choice = st.selectbox(
-            "Retomar conversa salva",
+            "Resume a saved conversation",
             [NEW, *labels],
             format_func=lambda k: labels.get(k, k),
             key="resume",
         )
-        st.checkbox("Mostrar detalhes técnicos de erros", key="debug")
+        st.checkbox("Show technical error details", key="debug")
 
-    with sb.expander("Como usar"):
+    with sb.expander("How to use"):
         st.markdown(HELP_WEB)
     ok, message = data_status(data_dir)
-    if sb.button("Verificar dados"):
+    if sb.button("Check data"):
         data_status.clear()
         ok, message = data_status(data_dir)
     (sb.success if ok else sb.error)(message)
@@ -329,36 +346,34 @@ def main() -> None:
     model, api_key, clock_text, data_dir, db, resume = sidebar()
     tracing = s["tracing"] = observability.setup()
     if tracing == "sem_chave":
-        st.sidebar.warning(observability.NO_KEY_WARNING)
+        st.sidebar.warning(NO_KEY_WARNING_EN)
     data_ok, _ = data_status(data_dir)
     ensure_runtime((model, api_key, clock_text, data_dir, db, resume))
     rt = s.get("rt")
 
     st.title(AGENT_NAME)
     if rt:
-        st.caption(f"Empório da Música - {logic.clock_label(rt.clock)} - modelo {rt.model}")
+        st.caption(f"Empório da Música - {logic.clock_label(rt.clock)} - model {rt.model}")
 
     if s.get("build_error"):
         st.warning(s["build_error"])
     if not data_ok:
-        st.error("O chat está bloqueado até os dados ficarem válidos (veja a barra lateral).")
+        st.error("The chat is blocked until the data is valid (see the sidebar).")
 
-    prompt = st.chat_input(
-        "Escreva sua mensagem", max_chars=MAX_CHARS, disabled=not (rt and data_ok)
-    )
+    prompt = st.chat_input("Write your message", max_chars=MAX_CHARS, disabled=not (rt and data_ok))
     text = s.pop("pending", None) if rt and data_ok else None
     if prompt:
         text = sanitize(prompt)
 
     messages: list[dict[str, Any]] = s.setdefault("messages", [])
     chat, examples, results, *extra = st.tabs(
-        ["Conversa", "Exemplos", "Resultados", "Métricas"]
+        ["Chat", "Examples", "Results", "Metrics"]
         if s.get("evaluator_mode")
-        else ["Conversa", "Exemplos", "Resultados"]
+        else ["Chat", "Examples", "Results"]
     )
     with chat:
         if not messages and not text and not s.get("last_error") and rt and data_ok:
-            st.caption("Para começar, escolha um exemplo ou escreva abaixo:")
+            st.caption("To start, choose an example or write below:")
             for example in logic.EXAMPLES:
                 st.button(example, on_click=send_example, args=(example,), key=f"ex-{example}")
         for message in messages:
@@ -389,12 +404,12 @@ def turn(rt: logic.Runtime, text: str, messages: list[dict[str, Any]]) -> None:
     render({"role": "user", "content": text})
     with st.chat_message("assistant"):
         holder = st.empty()
-        with holder.status(f"{AGENT_NAME} está digitando...") as status:
+        with holder.status(f"{AGENT_NAME} is typing...") as status:
 
             def on_event(event: Event) -> None:
                 if isinstance(event, ToolStarted):
-                    label = TOOL_LABELS.get(event.name, "consultando o sistema")
-                    status.update(label=f"{AGENT_NAME} está {label}...")
+                    label = TOOL_LABELS_EN.get(event.name, "consulting the system")
+                    status.update(label=f"{AGENT_NAME} is {label}...")
 
             reply = logic.run_one_turn(rt, text, on_event)
         holder.empty()

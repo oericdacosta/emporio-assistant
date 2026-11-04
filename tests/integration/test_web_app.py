@@ -53,7 +53,7 @@ def test_the_page_has_no_privacy_banner() -> None:
 
 def test_without_key_shows_friendly_message_and_disables_chat() -> None:
     at = start()
-    assert any("informe o modelo e a chave" in w.value for w in at.warning)
+    assert any("provide the model and the OpenAI key" in w.value for w in at.warning)
     assert at.chat_input[0].disabled
     assert "--" not in texts(at)
 
@@ -67,7 +67,7 @@ def test_example_click_shows_the_answer_and_tool_details(monkeypatch: pytest.Mon
     assert [m.name for m in at.chat_message] == ["user", "assistant"]
     assert "Abrimos às 9h." in texts(at)
     assert not any("Detalhes" in e.label for e in at.expander)  # o chat fica limpo
-    assert [t.label for t in at.tabs] == ["Conversa", "Exemplos", "Resultados"]
+    assert [t.label for t in at.tabs] == ["Chat", "Examples", "Results"]
     assert not [b for b in at.main.button if b.label in logic.EXAMPLES]  # exemplos somem
 
 
@@ -75,10 +75,10 @@ def test_provider_failure_warns_without_duplicating(monkeypatch: pytest.MonkeyPa
     use_llm(monkeypatch, FakeLLM(ProviderUnavailable("rede"), say("Oi!")))
     at = start()
     at.chat_input[0].set_value("oi").run()
-    assert any("Turno não gravado" in w.value for w in at.warning)
+    assert any("Turn not saved" in w.value for w in at.warning)
     assert [m.name for m in at.chat_message] == ["user", "assistant"]
     at.chat_input[0].set_value("oi").run()  # reenviar
-    assert not any("Turno não gravado" in w.value for w in at.warning)
+    assert not any("Turn not saved" in w.value for w in at.warning)
     assert [m.name for m in at.chat_message] == ["user", "assistant"]
     assert not at.exception
 
@@ -88,7 +88,7 @@ def test_new_chat_clears_the_conversation(monkeypatch: pytest.MonkeyPatch) -> No
     at = start()
     at.chat_input[0].set_value("olá").run()
     assert len(at.chat_message) == 2
-    next(b for b in at.sidebar.button if b.label == "Nova conversa").click().run()
+    next(b for b in at.sidebar.button if b.label == "New conversation").click().run()
     assert len(at.chat_message) == 0
     assert not at.exception
 
@@ -97,12 +97,12 @@ def test_new_chat_clears_the_conversation(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def refresh(at: AppTest) -> AppTest:
-    """Os dados do LangSmith só são lidos depois do clique em Atualizar."""
+    """The LangSmith data is only read after the click on Refresh."""
     return at.button(key="refresh-metrics").click().run()
 
 
 def evaluator_mode(at: AppTest) -> AppTest:
-    next(t for t in at.sidebar.toggle if t.label == "Modo avaliador").set_value(True)
+    next(t for t in at.sidebar.toggle if t.label == "Evaluator mode").set_value(True)
     return at.run()
 
 
@@ -135,7 +135,7 @@ class FakeRuns:
 
 def test_evaluator_mode_off_shows_only_the_chat_tab() -> None:
     at = start()
-    assert [t.label for t in at.tabs] == ["Conversa", "Exemplos", "Resultados"]
+    assert [t.label for t in at.tabs] == ["Chat", "Examples", "Results"]
 
 
 def test_evaluator_mode_adds_the_metrics_tab_and_moves_the_details_there(
@@ -149,28 +149,28 @@ def test_evaluator_mode_adds_the_metrics_tab_and_moves_the_details_there(
     at.button(key=f"ex-{EXAMPLE}").click().run()
     at = evaluator_mode(at)
     assert not at.exception
-    assert [t.label for t in at.tabs] == ["Conversa", "Exemplos", "Resultados", "Métricas"]
+    assert [t.label for t in at.tabs] == ["Chat", "Examples", "Results", "Metrics"]
     assert not fake.calls  # nada é lido do LangSmith antes do clique
-    assert any("Clique em **Atualizar**" in i.value for i in at.info)
+    assert any("Click **Refresh**" in i.value for i in at.info)
     at = refresh(at)
-    assert any("Clique em **Atualizar**" in i.value for i in at.info)  # a mensagem não some
-    assert any(e.label.startswith("Detalhes das consultas") for e in at.expander)
+    assert any("Click **Refresh**" in i.value for i in at.info)  # a mensagem não some
+    assert any(e.label.startswith("Details of the queries") for e in at.expander)
     assert any("get_store_info" in m.value for m in at.markdown)
     assert fake.calls and fake.calls[0]["is_root"] is True
     assert "session_id" in fake.calls[0]["filter"]
     titles = [h.value for h in at.subheader]
-    assert titles.index("Turnos desta conversa") < titles.index(
-        "Resumo do período"
+    assert titles.index("Turns of this conversation") < titles.index(
+        "Period summary"
     )  # a conversa vem antes
     labels = {m.label: m.value for m in at.metric}
-    assert {"Turnos", "Tempo mediano", "Tempo dos mais lentos", "Custo total"} <= set(labels)
-    assert "," in labels["Custo total"] and labels["Custo total"].startswith("US$ ")
+    assert {"Turns", "Median time", "Time of the slowest", "Total cost"} <= set(labels)
+    assert "." in labels["Total cost"] and labels["Total cost"].startswith("$")
     assert any("exp-9" in c.value for c in at.caption)
 
 
 def test_without_a_langsmith_key_the_metrics_tab_says_so() -> None:
     at = evaluator_mode(start())
-    assert any("LangSmith não configurado" in i.value for i in at.info)
+    assert any("LangSmith is not configured" in i.value for i in at.info)
     assert not at.exception
 
 
@@ -181,7 +181,7 @@ def test_a_client_error_becomes_a_warning_and_the_chat_keeps_working(
     monkeypatch.setattr(observability, "setup", lambda *a, **k: "ativo")
     monkeypatch.setattr(metrics, "client_factory", lambda: FakeRuns(error=OSError("rede")))
     at = refresh(evaluator_mode(start()))
-    assert any("Não consegui ler o LangSmith" in w.value for w in at.warning)
+    assert any("Could not read LangSmith" in w.value for w in at.warning)
     at.chat_input[0].set_value("olá").run()
     assert not at.exception
     assert [m.name for m in at.chat_message] == ["user", "assistant"]
@@ -215,13 +215,13 @@ def test_metrics_tab_shows_the_new_metrics_and_tables(monkeypatch: pytest.Monkey
     at = refresh(evaluator_mode(start()))
     assert not at.exception
     labels = {m.label: m.value for m in at.metric}
-    assert labels["Corrigidas pela guarda"] == "100%"
-    assert labels["Guarda barrou"] == "100%"
-    assert labels["Aprovação do cliente"] == "75%"
-    assert labels["Erros de tool"] == "50%" and labels["Consultas por turno"] == "2,0"
-    assert labels["Entrada vinda do cache"] == "50%"
+    assert labels["Fixed by the guard"] == "100%"
+    assert labels["Guard blocked"] == "100%"
+    assert labels["Customer approval"] == "75%"
+    assert labels["Tool errors"] == "50%" and labels["Queries per turn"] == "2.0"
+    assert labels["Input from the cache"] == "50%"
     subheaders = [s.value for s in at.subheader]
-    assert "Por tool" in subheaders and "Por versão do prompt" in subheaders
+    assert "By tool" in subheaders and "By prompt version" in subheaders
     assert any(
         d.value["tool"].tolist() == ["verify_customer", "get_order"]
         for d in at.dataframe
@@ -234,7 +234,7 @@ def test_metrics_without_feedback_show_a_dash(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(observability, "setup", lambda *a, **k: "ativo")
     monkeypatch.setattr(metrics, "client_factory", lambda: FakeRuns())
     at = refresh(evaluator_mode(start()))
-    assert {m.label: m.value for m in at.metric}["Aprovação do cliente"] == "-"
+    assert {m.label: m.value for m in at.metric}["Customer approval"] == "-"
 
 
 def test_feedback_widget_only_with_active_tracing_and_callback_never_raises(
@@ -259,7 +259,7 @@ def test_feedback_widget_only_with_active_tracing_and_callback_never_raises(
     assert len(at.feedback) == 1 and not at.exception
     at.feedback[0].set_value(1).run()
     assert not at.exception and len(sent) == 1 and sent[0][1] == 1.0
-    assert any("Não consegui registrar sua avaliação" in c.value for c in at.caption)
+    assert any("Could not record your rating" in c.value for c in at.caption)
     assert at.feedback[0].value == 1  # o estado fica na mensagem
 
 
@@ -269,9 +269,9 @@ def test_the_examples_tab_shows_the_recorded_conversations(monkeypatch: pytest.M
     )
     at = start()
     assert not at.exception
-    assert [t.label for t in at.tabs][:3] == ["Conversa", "Exemplos", "Resultados"]
+    assert [t.label for t in at.tabs][:3] == ["Chat", "Examples", "Results"]
     assert len(examples.load_examples()) >= 3
-    assert any(e.label.startswith("Busca no catálogo") for e in at.expander)
+    assert any(e.label.startswith("Example 1") for e in at.expander)
 
 
 def test_the_results_tab_shows_the_exported_numbers(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -284,12 +284,12 @@ def test_the_results_tab_shows_the_exported_numbers(monkeypatch: pytest.MonkeyPa
     assert snapshot is not None and snapshot["turns"]
     at = start()
     assert not at.exception
-    assert any(m.label == "Tempo mediano" for m in at.metric)  # as mesmas métricas da aba Métricas
+    assert any(m.label == "Median time" for m in at.metric)  # the same metrics as the Metrics tab
     subheaders = {h.value for h in at.subheader}
-    assert {"Resumo do período", "Por tool"} <= subheaders
-    assert not {"Turnos desta conversa", "Por versão do prompt", "Rodadas do golden"} & subheaders
+    assert {"Period summary", "By tool"} <= subheaders
+    assert not {"Turns of this conversation", "By prompt version", "Rodadas do golden"} & subheaders
     labels = {m.label for m in at.metric}
-    assert not {"Resposta segura", "Aprovação do cliente"} & labels
+    assert not {"Safe answer", "Customer approval"} & labels
 
 
 def test_a_missing_snapshot_is_not_an_error() -> None:

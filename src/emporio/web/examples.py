@@ -31,14 +31,14 @@ def _md(text: str) -> str:
 def examples_tab() -> None:
     items = load_examples()
     if not items:
-        st.info("Nenhuma conversa de exemplo em examples/conversations.")
+        st.info("No example conversations in examples/conversations.")
         return
-    st.caption(
-        "Conversas gravadas com o modelo real. Para conversar de verdade, use a aba Conversa."
-    )
+    st.caption("Conversations recorded with the real model. To really chat, use the Chat tab.")
     for item in items:
-        with st.expander(f"{item['title']}  ·  {item['kind']}"):
-            st.caption(f"{item['note']} Relógio simulado: {item['now']}. Modelo: {item['model']}.")
+        number, title = item.get("number"), item.get("title_en") or item["title"]
+        with st.expander(f"Example {number} — {title}" if number else title):
+            scenario = item.get("scenario_en") or item["note"]
+            st.caption(f"{scenario} Simulated clock: {item['now']}. Model: {item['model']}.")
             for turn in item["turns"]:
                 with st.chat_message("user"):
                     st.markdown(_md(turn["user"]))
@@ -47,8 +47,8 @@ def examples_tab() -> None:
                     if turn["tools"]:
                         for tool in turn["tools"]:
                             st.caption(
-                                f"consulta: {tool['name']} "
+                                f"query: {tool['name']} "
                                 f"{json.dumps(tool['arguments'], ensure_ascii=False)}"
                             )
                     else:
-                        st.caption("sem consultas")
+                        st.caption("no queries")
