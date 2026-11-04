@@ -9,77 +9,77 @@ from emporio.web import metrics
 
 
 def turns_section(turns: list[metrics.TurnRow]) -> None:
-    st.subheader("Turnos desta conversa")
+    st.subheader("Turns of this conversation")
     if turns:
         st.dataframe(metrics.table(turns), hide_index=True)
     else:
-        st.caption("Nenhum turno enviado ao LangSmith ainda (o envio leva alguns segundos).")
+        st.caption("No turn sent to LangSmith yet (the upload takes a few seconds).")
 
 
 def summary_section(period_rows: list[metrics.TurnRow], caption: str, *, full: bool = True) -> None:
     """Resumo, qualidade, uso e por tool. ``full`` acrescenta "Resposta segura", "Aprovação do
     cliente" e "Por versão do prompt", que só a aba Métricas (modo avaliador) mostra."""
     agg = metrics.aggregates(period_rows)
-    st.subheader("Resumo do período")
+    st.subheader("Period summary")
     st.caption(caption)
     q = metrics.quality(period_rows)
     # (rótulo, valor, ajuda, só no modo completo)
     items: list[tuple[str, int | str, str | None, bool]] = [
-        ("Turnos", agg.turns, None, False),
+        ("Turns", agg.turns, None, False),
         (
-            "Tempo mediano",
+            "Median time",
             metrics.fmt_seconds(agg.p50_s),
-            "Metade dos turnos respondeu em menos tempo que isso (p50).",
+            "Half of the turns answered in less time than this (p50).",
             False,
         ),
         (
-            "Tempo dos mais lentos",
+            "Time of the slowest",
             metrics.fmt_seconds(agg.p95_s),
-            "95% dos turnos respondeu em menos tempo que isso (p95).",
+            "95% of the turns answered in less time than this (p95).",
             False,
         ),
-        ("Custo total", metrics.fmt_usd(agg.total_cost), None, False),
-        ("Custo por turno", metrics.fmt_usd(metrics.cost_per_turn(agg)), None, False),
+        ("Total cost", metrics.fmt_usd(agg.total_cost), None, False),
+        ("Cost per turn", metrics.fmt_usd(metrics.cost_per_turn(agg)), None, False),
         (
-            "Resposta segura",
+            "Safe answer",
             metrics.fmt_pct(agg.fallback_rate),
-            "Turnos em que a guarda barrou duas vezes e o cliente recebeu a resposta segura.",
+            "Turns in which the guard blocked twice and the customer received the safe answer.",
             True,
         ),
         (
-            "Corrigidas pela guarda",
+            "Fixed by the guard",
             metrics.fmt_pct(q.corrected_rate),
-            "Turnos em que a guarda barrou a primeira resposta e o modelo se corrigiu.",
+            "Turns in which the guard blocked the first answer and the model corrected itself.",
             False,
         ),
         (
-            "Guarda barrou",
+            "Guard blocked",
             metrics.fmt_pct(q.blocked_rate),
-            "Turnos em que a guarda barrou ao menos uma resposta (corrigida ou não).",
+            "Turns in which the guard blocked at least one answer (corrected or not).",
             False,
         ),
         (
-            "Aprovação do cliente",
+            "Customer approval",
             metrics.fmt_pct(q.approval),
-            f"Avaliações 👍 entre 👍 e 👎 dadas pelos clientes ({q.feedback_n} no período).",
+            f"Share of 👍 among the 👍 and 👎 ratings given by customers ({q.feedback_n} in the period).",
             True,
         ),
         (
-            "Erros de tool",
+            "Tool errors",
             metrics.fmt_pct(q.tool_error_rate),
-            "Consultas que voltaram com erro, entre todas as consultas feitas.",
+            "Queries that came back with an error, among all queries made.",
             False,
         ),
         (
-            "Consultas por turno",
+            "Queries per turn",
             metrics.fmt_num(q.tools_per_turn),
-            "Média de consultas (tools) em cada turno.",
+            "Average number of queries (tools) in each turn.",
             False,
         ),
         (
-            "Entrada vinda do cache",
+            "Input from the cache",
             metrics.fmt_pct(q.cache_share),
-            "Parte dos tokens de entrada que o provedor reaproveitou do cache.",
+            "Share of the input tokens that the provider reused from the cache.",
             False,
         ),
     ]
@@ -94,15 +94,15 @@ def summary_section(period_rows: list[metrics.TurnRow], caption: str, *, full: b
             st.columns(per_row), shown[start : start + per_row], strict=False
         ):
             column.metric(label, value, help=help_)
-    st.subheader("Por tool")
+    st.subheader("By tool")
     if tools := metrics.by_tool(period_rows):
         st.dataframe(tools, hide_index=True)
     else:
-        st.caption("Nenhuma consulta no período.")
+        st.caption("No queries in the period.")
     if not full:
         return
-    st.subheader("Por versão do prompt")
+    st.subheader("By prompt version")
     if versions := metrics.by_prompt(period_rows):
         st.dataframe(versions, hide_index=True)
     else:
-        st.caption("Nenhum turno no período.")
+        st.caption("No turns in the period.")

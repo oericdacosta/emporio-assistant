@@ -1,428 +1,436 @@
-# Empório da Música: Téo, o assistente de atendimento
+# Empório da Música: Téo, the customer service assistant
 
 [![CI](https://github.com/oericdacosta/emporio-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/oericdacosta/emporio-assistant/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
-![Licença](https://img.shields.io/badge/licença-MIT-green)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-Protótipo de um agente de atendimento por mensagens de texto para a Empório da Música, uma loja
-fictícia de instrumentos musicais em Campo Grande/MS. Feito para o desafio técnico de AI Engineer da
-Artefact.
+A prototype of a text-message customer service agent for Empório da Música, a fictitious musical
+instrument store in Campo Grande/MS (Brazil). Built for Artefact's AI Engineer technical challenge.
 
-O Téo responde sobre catálogo, preços, pagamento, frete, horário, pedidos, devolução e garantia, usando
-os dados reais da loja (os CSVs e o manual de políticas), e recusa com educação o que não é assunto da
-loja. Ele nunca inventa preço, prazo ou regra: o que tem resposta "certa" sai de código; o modelo só
-conversa.
+Téo answers about the catalog, prices, payment, shipping, opening hours, orders, returns and warranty, using
+the store's real data (the CSVs and the policy manual), and politely refuses what is not the store's
+business. It never invents a price, a deadline or a rule: whatever has a "right" answer comes from code; the
+model only talks. The store, its customers and the agent's answers are in Brazilian Portuguese; this
+documentation is in English.
 
 ```mermaid
 flowchart LR
-    C(["Cliente"]) --> T["Téo"]
-    T -->|"preço, estoque, promoção"| D[("CSVs da loja")]
-    T -->|"troca, garantia, pagamento, frete"| P[("Manual de políticas")]
-    T -->|"status e devolução de pedido"| O["Pedidos, só para o dono verificado"]
-    T -->|"conta: parcela, prazo, horário"| R["Regras em código, com Decimal e relógio"]
-    T -->|"não é da loja"| X["Recusa educada"]
+    C(["Customer"]) --> T["Téo"]
+    T -->|"price, stock, promotion"| D[("Store CSVs")]
+    T -->|"exchange, warranty, payment, shipping"| P[("Policy manual")]
+    T -->|"order status and returns"| O["Orders, only for the verified owner"]
+    T -->|"arithmetic: installment, deadline, opening hours"| R["Rules in code, with Decimal and a clock"]
+    T -->|"not about the store"| X["Polite refusal"]
 ```
 
-## Sumário
+## Contents
 
-1. [Como o desafio foi atendido](#1-como-o-desafio-foi-atendido)
-2. [Início rápido](#2-início-rápido)
-3. [Como usar](#3-como-usar)
-4. [Exemplos de conversa](#4-exemplos-de-conversa)
-5. [Arquitetura](#5-arquitetura)
-6. [Decisões técnicas](#6-decisões-técnicas)
-7. [Testes e avaliação](#7-testes-e-avaliação)
-8. [Premissas assumidas](#8-premissas-assumidas)
-9. [Limitações conhecidas](#9-limitações-conhecidas)
-10. [O que faria com mais tempo](#10-o-que-faria-com-mais-tempo)
-11. [Uso de assistentes de código](#11-uso-de-assistentes-de-código)
-12. [Estrutura do projeto](#12-estrutura-do-projeto)
-13. [Documentação completa](#13-documentação-completa)
+1. [How the challenge was met](#1-how-the-challenge-was-met)
+2. [Quick start](#2-quick-start)
+3. [How to use](#3-how-to-use)
+4. [Example conversations](#4-example-conversations)
+5. [Architecture](#5-architecture)
+6. [Technical decisions](#6-technical-decisions)
+7. [Tests and evaluation](#7-tests-and-evaluation)
+8. [Assumptions made](#8-assumptions-made)
+9. [Known limitations](#9-known-limitations)
+10. [What I would do with more time](#10-what-i-would-do-with-more-time)
+11. [Use of coding assistants](#11-use-of-coding-assistants)
+12. [Project structure](#12-project-structure)
+13. [Full documentation](#13-full-documentation)
 
 ---
 
-## 1. Como o desafio foi atendido
+## 1. How the challenge was met
 
-Cada pedido do enunciado e onde ele está resolvido:
+Each request of the brief and where it is solved:
 
-| O desafio pede | Como foi atendido | Onde ver |
+| The challenge asks | How it was met | Where to look |
 |---|---|---|
-| Projeto em Python | Python 3.12, tipos estritos | `src/emporio/` |
-| Persona alinhada à identidade e ao tom da loja | O Téo: amigo que entende de música, informal e profissional, respostas curtas de WhatsApp, como o manual pede (seção 7.1) | [Decisão D18](docs/decisoes-tecnicas.md#d18-estratégia-de-prompt), `prompts/system.md` |
-| Responder com base no contexto disponível | 11 ferramentas sobre os CSVs e o manual; resposta sem origem é barrada pela guarda | [Arquitetura](docs/arquitetura.md#5-as-11-ferramentas) |
-| Saber quando consultar dados e quando consultar políticas | Ferramentas de catálogo, loja e pedido para dados; `search_policy` para regras, e o modelo escolhe, com a escolha visível no `--trace` | [D1](docs/decisoes-tecnicas.md#d1-a-abordagem-function-calling-com-ferramentas-determinísticas), [D6](docs/decisoes-tecnicas.md#d6-consulta-às-políticas-sem-embeddings) |
-| Lidar com perguntas fora do escopo | Roteador de regras antes do modelo, mais regra no prompt e filtros de saída | [D8](docs/decisoes-tecnicas.md#d8-o-roteador-de-escopo-antes-do-modelo) |
-| Framework / abordagem justificados | Function calling com ferramentas determinísticas e grafo LangGraph; sem RAG | [D1](docs/decisoes-tecnicas.md#d1-a-abordagem-function-calling-com-ferramentas-determinísticas), [D3](docs/decisoes-tecnicas.md#d3-orquestração-do-turno-do-laço-próprio-ao-langgraph) |
-| Modelo e provedor justificados | OpenAI `gpt-4.1-mini` atrás de um contrato próprio | [D4](docs/decisoes-tecnicas.md#d4-modelo-e-provedor) |
-| Interface (CLI, API, UI) | CLI e Streamlit, abertos com um comando | [D12](docs/decisoes-tecnicas.md#d12-interface) |
-| Persistência do histórico | SQLite sem dado pessoal, 30 dias, retomável | [D10](docs/decisoes-tecnicas.md#d10-persistência-do-histórico) |
-| Tratamento dos dados | Carga validada, `Decimal`, relatório de qualidade, status que manda sobre o estoque | [Dados e políticas](docs/dados-e-politicas.md) |
-| Estratégia de retrieval e de prompt justificadas | Sem embeddings, política por tópico; prompt curto, com prefixo estável | [D6](docs/decisoes-tecnicas.md#d6-consulta-às-políticas-sem-embeddings), [D18](docs/decisoes-tecnicas.md#d18-estratégia-de-prompt) |
-| Repositório público com histórico real | 145 commits em 35 pull requests, validados pelo CI | [Histórico](https://github.com/oericdacosta/emporio-assistant/commits/main) |
-| Instruções para rodar | [Início rápido](#2-início-rápido): um comando, em qualquer sistema | abaixo |
-| Limitações conhecidas e o que faria com mais tempo | Documentadas com números, e um plano até a produção | [Limitações](docs/limitacoes-e-evolucao.md) |
-| **Uso de assistentes de código** | Claude Code como revisor e avaliador do código e auxiliar na escrita, e apoio à pesquisa e ao raciocínio sobre a orquestração e o planejamento; também o NotebookLM, para estudar papers, artigos e documentações; a ideia e as decisões são minhas, e o Claude Code foi avaliador e revisor do código. | [Uso de IA](docs/uso-de-ia.md) |
-| 3 a 5 conversas de exemplo, ao menos uma não trivial | 5 conversas, com consulta a dados em tempo real e aplicação de regras | [Exemplos](#4-exemplos-de-conversa) |
-| Premissas documentadas para o que estava ambíguo | Tabela de suposições | [Premissas](#8-premissas-assumidas) |
+| A Python project | Python 3.12, strict types | `src/emporio/` |
+| A persona aligned with the store's identity and tone | Téo: a friend who knows music, informal and professional, short WhatsApp-style answers, as the manual asks (section 7.1) | [Decision D18](docs/technical-decisions.md#d18-prompt-strategy), `prompts/system.md` |
+| Answer based on the available context | 11 tools over the CSVs and the manual; an answer without a source is blocked by the guard | [Architecture](docs/architecture.md#5-the-11-tools) |
+| Know when to consult data and when to consult policies | Catalog, store and order tools for data; `search_policy` for rules, and the model chooses, with the choice visible in `--trace` | [D1](docs/technical-decisions.md#d1-the-approach-function-calling-with-deterministic-tools), [D6](docs/technical-decisions.md#d6-policy-lookup-without-embeddings) |
+| Handle out-of-scope questions | A rule-based router before the model, plus a prompt rule and output filters | [D8](docs/technical-decisions.md#d8-the-scope-router-before-the-model) |
+| Framework / approach justified | Function calling with deterministic tools and a LangGraph graph; no RAG | [D1](docs/technical-decisions.md#d1-the-approach-function-calling-with-deterministic-tools), [D3](docs/technical-decisions.md#d3-turn-orchestration-from-a-hand-written-loop-to-langgraph) |
+| Model and provider justified | OpenAI `gpt-4.1-mini` behind our own contract | [D4](docs/technical-decisions.md#d4-model-and-provider) |
+| Interface (CLI, API, UI) | CLI and Streamlit, opened with a single command | [D12](docs/technical-decisions.md#d12-interface) |
+| History persistence | SQLite with no personal data, 30 days, resumable | [D10](docs/technical-decisions.md#d10-history-persistence) |
+| Data handling | Validated load, `Decimal`, quality report, status that takes precedence over stock | [Data and policies](docs/data-and-policies.md) |
+| Retrieval and prompt strategy justified | No embeddings, policy by topic; short prompt, with a stable prefix | [D6](docs/technical-decisions.md#d6-policy-lookup-without-embeddings), [D18](docs/technical-decisions.md#d18-prompt-strategy) |
+| Public repository with real history | 145 commits in 35 pull requests, validated by the CI | [History](https://github.com/oericdacosta/emporio-assistant/commits/main) |
+| Instructions to run | [Quick start](#2-quick-start): one command, on any system | below |
+| Known limitations and what I would do with more time | Documented with numbers, and a plan to production | [Limitations](docs/limitations-and-evolution.md) |
+| **Use of coding assistants** | Claude Code as a reviewer and evaluator of the code and a writing aid, and as support for research and for reasoning about the orchestration and the plan; also NotebookLM, to study papers, articles and documentation; the idea and the decisions are mine, and Claude Code was an evaluator and reviewer of the code. | [AI usage](docs/ai-usage.md) |
+| 3 to 5 example conversations, at least one non-trivial | 5 conversations, with live data lookups and rule application | [Examples](#4-example-conversations) |
+| Assumptions documented for what was ambiguous | Table of assumptions | [Assumptions](#8-assumptions-made) |
 
-## 2. Início rápido
+## 2. Quick start
 
-### Pré-requisitos
+### Prerequisites
 
-- [uv](https://docs.astral.sh/uv/), o gerenciador de pacotes e de ambientes do projeto. Ele também baixa o
-  Python 3.12 se você não o tiver. Não precisa instalar mais nada.
-- Uma chave de API da OpenAI.
+- [uv](https://docs.astral.sh/uv/), the project's package and environment manager. It also downloads
+  Python 3.12 if you do not have it. You do not need to install anything else.
+- An OpenAI API key.
 
-Instalar o `uv` (uma vez):
+Install `uv` (once):
 
-| Sistema | Comando |
+| System | Command |
 |---|---|
-| Linux e macOS | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| Windows (PowerShell) | `winget install astral-sh.uv` ou `powershell -c "irm https://astral.sh/uv/install.ps1 \| iex"` |
+| Linux and macOS | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| Windows (PowerShell) | `winget install astral-sh.uv` or `powershell -c "irm https://astral.sh/uv/install.ps1 \| iex"` |
 
-### Rodar, em três passos
+### Run, in three steps
 
 ```bash
-# 1. baixar o projeto
+# 1. download the project
 git clone https://github.com/oericdacosta/emporio-assistant.git
 cd emporio-assistant
 
-# 2. rodar (na primeira vez, cria o arquivo .env e pede para você preenchê-lo)
+# 2. run (the first time, it creates the .env file and asks you to fill it in)
 uv run emporio-ui
 
-# 3. abra o .env, preencha OPENAI_API_KEY e LLM_MODEL e rode o mesmo comando de novo
+# 3. open .env, fill in OPENAI_API_KEY and LLM_MODEL and run the same command again
 uv run emporio-ui
 ```
 
-O mesmo comando vale em Linux, macOS e Windows. Onde houver `make` (Linux, WSL, macOS), `make run` faz
-exatamente a mesma coisa. O `uv run` cria o ambiente, instala as dependências travadas (`uv.lock`) e abre
-a interface no navegador.
+The same command works on Linux, macOS and Windows. Where `make` exists (Linux, WSL, macOS), `make run` does
+exactly the same thing. `uv run` creates the environment, installs the locked dependencies (`uv.lock`) and
+opens the interface in the browser.
 
 ```mermaid
 flowchart TD
-    A["uv run emporio-ui"] --> B["uv instala o Python 3.12 e as dependências travadas, se faltarem"]
-    B --> C{"Existe o arquivo .env?"}
-    C -->|"não"| D["Cria o .env a partir do .env.example e pede para preencher"]
-    D --> E(["Você preenche e roda de novo"])
-    C -->|"sim"| F["Abre o Streamlit no navegador"]
-    F --> G["Conversa, Exemplos, Resultados e Métricas"]
+    A["uv run emporio-ui"] --> B["uv installs Python 3.12 and the locked dependencies, if missing"]
+    B --> C{"Does the .env file exist?"}
+    C -->|"no"| D["Creates .env from .env.example and asks you to fill it in"]
+    D --> E(["You fill it in and run again"])
+    C -->|"yes"| F["Opens Streamlit in the browser"]
+    F --> G["Chat, Examples, Results and Metrics"]
 ```
 
-> Windows e macOS: o comando é o mesmo, mas o projeto foi desenvolvido e testado em Linux (Ubuntu e
-> WSL). Se algo se comportar diferente no seu sistema, a causa mais provável é o ambiente.
+> Windows and macOS: the command is the same, but the project was developed and tested on Linux (Ubuntu
+> and WSL). If something behaves differently on your system, the most likely cause is the environment.
 
-### Configuração (`.env`)
+### Configuration (`.env`)
 
-| Variável | Obrigatória | O que faz |
+| Variable | Required | What it does |
 |---|---|---|
-| `OPENAI_API_KEY` | Sim, para conversar | Chave da OpenAI |
-| `LLM_MODEL` | Sim, para conversar | Modelo da OpenAI. Não há padrão no código, de propósito. O projeto foi medido com `gpt-4.1-mini` |
-| `AGENT_NOW` | Não | Congela o relógio, por exemplo `2026-03-23T10:00`. O `.env.example` já traz essa data, porque os pedidos da loja são de 2025 e 2026. Apague a linha para usar o relógio real |
-| `LANGSMITH_API_KEY` | Não | Liga o tracing e a aba Métricas. Sem ela o app funciona e só avisa |
-| `LANGSMITH_TRACING` | Não | `true` (padrão) ou `false` |
-| `LANGSMITH_PROJECT` | Não | Projeto dos traces (padrão: `emporio-teo`) |
-| `EMPORIO_HISTORY_DB` | Não | Caminho do SQLite do histórico (padrão: `history/sessions.db`) |
-| `EMPORIO_DATA_DIR` | Não | Pasta dos CSVs (padrão: `data/raw/`) |
+| `OPENAI_API_KEY` | Yes, to chat | OpenAI key |
+| `LLM_MODEL` | Yes, to chat | OpenAI model. There is no default in the code, on purpose. The project was measured with `gpt-4.1-mini` |
+| `AGENT_NOW` | No | Freezes the clock, for example `2026-03-23T10:00`. `.env.example` already brings this date, because the store's orders are from 2025 and 2026. Delete the line to use the real clock |
+| `LANGSMITH_API_KEY` | No | Turns on tracing and the Metrics tab. Without it the app works and only warns |
+| `LANGSMITH_TRACING` | No | `true` (default) or `false` |
+| `LANGSMITH_PROJECT` | No | Project of the traces (default: `emporio-teo`) |
+| `EMPORIO_HISTORY_DB` | No | Path of the history SQLite (default: `history/sessions.db`) |
+| `EMPORIO_DATA_DIR` | No | Folder of the CSVs (default: `data/raw/`) |
 
-> Sem chave? Você ainda vê as abas Exemplos (as 5 conversas gravadas) e Resultados (os números dos
-> testes do autor), que não chamam o modelo.
+> No key? You can still see the Examples tab (the 5 recorded conversations) and the Results tab (the
+> author's test numbers), which do not call the model.
 
-## 3. Como usar
+## 3. How to use
 
-### Interface web (Streamlit)
+### Web interface (Streamlit)
 
-`uv run emporio-ui` (ou `make run`). A interface tem quatro abas:
+`uv run emporio-ui` (or `make run`). The interface has four tabs, all in English. Téo itself answers in
+Portuguese, and the clickable example questions are in Portuguese too:
 
-| Aba | O que mostra | Precisa de chave? |
+| Tab | What it shows | Needs a key? |
 |---|---|---|
-| Conversa | O chat com o Téo, com exemplos clicáveis e 👍/👎 em cada resposta | Sim (OpenAI) |
-| Exemplos | As 5 conversas de exemplo, com as consultas que o agente fez em cada turno | Não |
-| Resultados | Os números medidos pelo autor (turnos, tempo, custo, guarda, erros de ferramenta e por ferramenta). Qualquer pessoa que baixar o projeto vê os mesmos | Não |
-| Métricas | As métricas das suas próprias conversas, lidas do seu LangSmith. Aparece ao ligar o modo avaliador na barra lateral | LangSmith |
+| Chat | The chat with Téo, with clickable examples and 👍/👎 on each answer | Yes (OpenAI) |
+| Examples | The 5 example conversations, with the queries the agent made in each turn | No |
+| Results | The numbers measured by the author (turns, time, cost, guard, tool errors and per tool). Anyone who downloads the project sees the same ones | No |
+| Metrics | The metrics of your own conversations, read from your LangSmith. It appears when you turn on evaluator mode in the sidebar | LangSmith |
 
-### Linha de comando
+### Command line
 
 ```bash
-uv run emporio                                   # conversa interativa
-uv run emporio --trace                           # mostra consultas, tokens e latência de cada turno
-uv run emporio -m "Quanto custa o Takamine GD20?"   # uma mensagem, imprime a resposta e sai
+uv run emporio                                   # interactive conversation
+uv run emporio --trace                           # shows the queries, tokens and latency of each turn
+uv run emporio -m "Quanto custa o Takamine GD20?"   # one message, prints the answer and exits
 uv run emporio --now 2026-02-20T10:00 -m "Posso devolver o pedido 7?"
-uv run emporio --session ID                      # retoma uma conversa salva
-uv run emporio --check-data                      # valida os CSVs e o manual e sai
+uv run emporio --session ID                      # resumes a saved conversation
+uv run emporio --check-data                      # validates the CSVs and the manual and exits
 ```
 
-Dentro da conversa: `/ajuda`, `/novo` (outra conversa; a anterior fica salva), `/esquecer` (apaga o histórico
-e a verificação de identidade), `/trace` (liga ou desliga o trace) e `/sair`.
+Inside the conversation (the commands are in Portuguese): `/ajuda` (help), `/novo` (another conversation;
+the previous one stays saved), `/esquecer` (erases the history and the identity verification), `/trace`
+(turns the trace on or off) and `/sair` (quit).
 
-A CLI sai com códigos distintos (ok, erro inesperado, uso inválido, configuração, provedor indisponível,
-cassete, Ctrl-C), então pode ser usada em scripts.
+The CLI exits with distinct codes (ok, unexpected error, invalid usage, configuration, provider
+unavailable, cassette, Ctrl-C), so it can be used in scripts.
 
-### Atalhos (`make`)
+### Shortcuts (`make`)
 
-| Comando | O que faz |
+| Command | What it does |
 |---|---|
-| `make run` | Um comando só: instala o que falta e abre a interface web |
-| `make chat` | Abre a conversa na linha de comando |
-| `make test` | Roda os 864 testes (sem chave e sem rede) |
-| `make cov` | Testes com cobertura de linhas e ramos |
-| `make lint`, `make type`, `make fmt` | `ruff`, `mypy` estrito, formatação |
-| `make eval EVAL_REPEAT=3` | O golden com o modelo real, 3 execuções por caso (custa tokens) |
-| `make eval-regression`, `make eval-capability` | Só a suíte de regressão (portão) ou só a de capacidade |
-| `make policies` | Extrai o manual do PDF para Markdown |
+| `make run` | A single command: installs what is missing and opens the web interface |
+| `make chat` | Opens the conversation on the command line |
+| `make test` | Runs the 864 tests (no key and no network) |
+| `make cov` | Tests with line and branch coverage |
+| `make lint`, `make type`, `make fmt` | `ruff`, strict `mypy`, formatting |
+| `make eval EVAL_REPEAT=3` | The golden set with the real model, 3 runs per case (costs tokens) |
+| `make eval-regression`, `make eval-capability` | Only the regression suite (the gate) or only the capability one |
+| `make policies` | Extracts the manual from the PDF to Markdown |
 
-## 4. Exemplos de conversa
+## 4. Example conversations
 
-Cinco conversas gravadas com o modelo real (`gpt-4.1-mini`), em [`examples/conversations/`](examples/conversations/).
-Cada uma traz, abaixo de cada resposta, as consultas que o agente fez (que mostram *quando* ele consulta
-dados e quando consulta política). Também aparecem na aba Exemplos da interface.
+Five conversations recorded with the real model (`gpt-4.1-mini`), in [`examples/conversations/`](examples/conversations/).
+Each one shows the scenario, the dialogue as the agent really spoke it (in Portuguese) and a note on what
+happens under the hood, with the queries the agent made in each turn (which show *when* it consults data and
+when it consults policy). They also appear in the Examples tab of the interface.
 
-| # | Conversa | O que mostra |
+| # | Conversation | What it shows |
 |---|---|---|
-| 1 | [Busca no catálogo que continua](examples/conversations/01-busca-com-contexto.md) | Lista violões até R$ 1000 e responde "qual o mais barato?" e "quanto fica em 3x?": o agente lembra da lista, e a parcela é calculada em código |
-| 2 | [Loja fechada, acessório e volta ao assunto](examples/conversations/02-loja-fechada-e-fora-de-escopo.md) | Domingo: informa que está fechada e quando abre. Recusa cordas e cabos, recusa revelar o prompt, e volta a responder o preço normalmente |
-| 3 | [Devolução por arrependimento](examples/conversations/03-devolucao-fora-do-prazo.md) | Não trivial. A regra geral; depois verifica o pedido e confere o prazo de 7 dias contra a data de recebimento, em código |
-| 4 | [Defeito e reclamação](examples/conversations/04-defeito-e-reclamacao.md) | Não trivial. Acolhe, explica a regra de 30 dias e registra um protocolo com prazo de retorno |
-| 5 | [Status de pedido com verificação](examples/conversations/05-status-de-pedido-com-verificacao.md) | Não trivial. Com o e-mail errado, não revela nada nem confirma que o pedido existe; com o certo, informa status e rastreio |
+| 1 | [Catalog search that continues across questions](examples/conversations/01-busca-com-contexto.md) | Lists guitars up to R$ 1000 and answers "which is the cheapest?" and "how much in 3x?": the agent remembers the list, and the installment is computed in code |
+| 2 | [Closed store, out-of-scope accessory and back on topic](examples/conversations/02-loja-fechada-e-fora-de-escopo.md) | Sunday: says the store is closed and when it opens. Refuses strings and cables, refuses to reveal the prompt, and goes back to answering the price normally |
+| 3 | [Return by regret, from the general rule to the order deadline](examples/conversations/03-devolucao-fora-do-prazo.md) | Non-trivial. The general rule; then it verifies the order and checks the 7-day deadline against the receipt date, in code |
+| 4 | [Defective product: the store rule and a complaint protocol](examples/conversations/04-defeito-e-reclamacao.md) | Non-trivial. Shows empathy, explains the 30-day rule and registers a protocol with a return time |
+| 5 | [Order status with identity verification](examples/conversations/05-status-de-pedido-com-verificacao.md) | Non-trivial. With the wrong e-mail, it reveals nothing and does not confirm that the order exists; with the right one, it gives status and tracking |
 
-Um trecho da conversa 3, a aplicação de uma regra da política a um pedido real:
+An excerpt of conversation 3, the application of a policy rule to a real order (the customer and Téo speak
+Portuguese):
 
-> **Cliente:** Me arrependi da minha compra, posso devolver meu pedido?
+> **User:** Me arrependi da minha compra, posso devolver meu pedido?
 >
-> **Téo:** Pode sim! Você tem até 7 dias corridos após o recebimento para devolver o produto, sem precisar
+> **Assistant:** Pode sim! Você tem até 7 dias corridos após o recebimento para devolver o produto, sem precisar
 > justificar. Ele precisa estar na embalagem original, sem uso e com todos os acessórios. Me passa o número do
 > pedido e o e-mail do cadastro (ou os 4 últimos dígitos do telefone) para eu verificar seu caso?
-> *(consultou: `search_policy`)*
+> *(consulted: `search_policy`)*
 >
-> **Cliente:** É o pedido 7, recebi dia 17/02. Meu e-mail é leticia.rocha@jmail.com
+> **User:** É o pedido 7, recebi dia 17/02. Meu e-mail é leticia.rocha@jmail.com
 >
-> **Téo:** Letícia, o prazo para devolução por arrependimento venceu em 24/02/2026, então não dá para fazer a
+> **Assistant:** Letícia, o prazo para devolução por arrependimento venceu em 24/02/2026, então não dá para fazer a
 > devolução agora. Quer que eu encaminhe sua situação para a equipe analisar?
-> *(consultou: `verify_customer`, `check_return_eligibility`)*
+> *(consulted: `verify_customer`, `check_return_eligibility`)*
 
-Quem verificou a cliente e calculou o prazo foi o código. O modelo só entendeu que era um arrependimento e
-escreveu a resposta com o veredito pronto.
+The code verified the customer and calculated the deadline. The model only understood that it was a regret
+return and wrote the answer with the verdict already given.
 
-## 5. Arquitetura
+## 5. Architecture
 
-Cada mensagem vira um turno, um grafo de nós (LangGraph). O modelo escolhe ferramentas e redige; o código
-executa, valida e confere.
+Each message becomes a turn, a graph of nodes (LangGraph). The model chooses tools and writes; the code
+runs, validates and checks.
 
 ```mermaid
 flowchart TD
-    START(["Fala do cliente"]) --> R["router: injeção, fora de escopo ou emergência?"]
-    R -->|"sim: resposta pronta, sem modelo"| FIM(["Resposta"])
-    R -->|"não"| RF["resume_flows: retoma verificação e reclamação"]
-    RF --> M["model: o LLM escolhe as ferramentas"]
-    M -->|"pediu ferramentas"| T["tools: executa e registra no ledger"]
+    START(["Customer message"]) --> R["router: injection, out of scope or emergency?"]
+    R -->|"yes: canned answer, no model"| FIM(["Answer"])
+    R -->|"no"| RF["resume_flows: resume verification and complaint"]
+    RF --> M["model: the LLM chooses the tools"]
+    M -->|"asked for tools"| T["tools: run and record in the ledger"]
     T --> M
-    M -->|"texto final"| G{"guard: valores, filtros, ferramenta certa, portão"}
-    G -->|"se sustenta"| C["compose"]
+    M -->|"final text"| G{"guard: values, filters, right tool, gate"}
+    G -->|"holds up"| C["compose"]
     C --> FIM
-    G -->|"não, 1ª vez"| M
-    G -->|"não, de novo"| FB["fallback: resposta segura"]
+    G -->|"no, 1st time"| M
+    G -->|"no, again"| FB["fallback: safe answer"]
     FB --> FIM
 ```
 
-Em camadas, de fora para dentro:
+In layers, from the outside in:
 
 ```mermaid
 flowchart LR
-    UI["CLI e Streamlit"] --> AG["Agente: grafo, guardas, estado"]
-    AG --> TL["11 ferramentas: validam argumentos, devolvem dado"]
-    TL --> DM["Domínio: regras puras, com Decimal"]
-    TL --> DT["Dados: CSVs e manual"]
-    AG --> LLM["Contrato LLMClient: OpenAI, replay, fake"]
+    UI["CLI and Streamlit"] --> AG["Agent: graph, guards, state"]
+    AG --> TL["11 tools: validate arguments, return data"]
+    TL --> DM["Domain: pure rules, with Decimal"]
+    TL --> DT["Data: CSVs and manual"]
+    AG --> LLM["LLMClient contract: OpenAI, replay, fake"]
     AG -.-> OBS["LangSmith"]
-    UI --> SES["SQLite: histórico sem dado pessoal"]
+    UI --> SES["SQLite: history without personal data"]
 ```
 
-Quatro ideias seguram o desenho:
+Four ideas hold the design together:
 
-- O modelo conversa, o código decide. Preço, horário, prazo e identidade são código testável.
-- O modelo só vê o mundo pelas ferramentas, e nunca recebe uma exceção: recebe dados para se corrigir.
-- A resposta é conferida antes de sair. Todo valor, percentual, parcela e rastreio precisa ter origem.
-- O agente não conhece as ferramentas concretas (um teste de arquitetura garante), então o motor pode
-  mudar sem mexer nelas.
+- The model talks, the code decides. Price, opening hours, deadline and identity are testable code.
+- The model only sees the world through the tools, and it never receives an exception: it receives data to
+  correct itself.
+- The answer is checked before it goes out. Every value, percentage, installment and tracking code must
+  have a source.
+- The agent does not know the concrete tools (an architecture test guarantees it), so the engine can change
+  without touching them.
 
-Detalhes, com mais diagramas, em [docs/arquitetura.md](docs/arquitetura.md).
+Details, with more diagrams, in [docs/architecture.md](docs/architecture.md).
 
-## 6. Decisões técnicas
+## 6. Technical decisions
 
-Todas estão explicadas, com a escolha, o motivo, as alternativas descartadas, o custo aceito e quando eu
-reveria, em [docs/decisoes-tecnicas.md](docs/decisoes-tecnicas.md). Resumo:
+All of them are explained, with the choice, the reason, the discarded alternatives, the accepted cost and
+when I would revisit, in [docs/technical-decisions.md](docs/technical-decisions.md). Summary:
 
-| Decisão | Escolha | Por que, em uma linha | Alternativa descartada |
+| Decision | Choice | Why, in one line | Discarded alternative |
 |---|---|---|---|
-| [Abordagem](docs/decisoes-tecnicas.md#d1-a-abordagem-function-calling-com-ferramentas-determinísticas) | Function calling com ferramentas determinísticas | Dados pequenos e estruturados, com regras de conta: consulta exata, não similaridade | RAG, contexto inteiro, text-to-SQL, multiagente |
-| [Orquestração](docs/decisoes-tecnicas.md#d3-orquestração-do-turno-do-laço-próprio-ao-langgraph) | Grafo LangGraph | O fluxo ganhou ramos (roteador, retry, fallback); cada ramo virou uma aresta. Era um laço próprio no começo | Laço à mão, LangChain, PydanticAI |
-| [Modelo](docs/decisoes-tecnicas.md#d4-modelo-e-provedor) | OpenAI `gpt-4.1-mini`, atrás do contrato `LLMClient` | Medido: 35 de 37 no golden, 1,7 s, cerca de US$ 0,0017 por turno | Modelo maior, local, outro provedor |
-| [Dados](docs/decisoes-tecnicas.md#d5-tratamento-dos-dados) | CSVs intactos, objetos imutáveis, `Decimal` | Dinheiro não pode ser `float`; os números do manual vêm de um JSON com hash | pandas, banco SQL |
-| [Políticas](docs/decisoes-tecnicas.md#d6-consulta-às-políticas-sem-embeddings) | `search_policy` por tópico, texto literal | Roteamento determinístico e visível no trace | Embeddings, manual no prompt |
-| [Anti-alucinação](docs/decisoes-tecnicas.md#d7-a-guarda-de-fundamentação) | Ledger de valores, determinístico | Verificação barata e igual em toda execução | LLM como juiz |
-| [Escopo](docs/decisoes-tecnicas.md#d8-o-roteador-de-escopo-antes-do-modelo) | Regras antes do modelo | Mais barato e não depende de o modelo obedecer | Classificador com LLM |
-| [Identidade](docs/decisoes-tecnicas.md#d9-identidade-do-cliente) | Pedido mais uma prova, em código | O número do pedido é sequencial, então não prova nada | Deixar o modelo decidir |
-| [Histórico](docs/decisoes-tecnicas.md#d10-persistência-do-histórico) | SQLite sem dado pessoal, 30 dias | Retomar sem guardar quem a pessoa é | JSON, histórico por cliente |
-| [Interface](docs/decisoes-tecnicas.md#d12-interface) | CLI e Streamlit, um comando só | O foco é o agente, e o avaliador precisa ver e testar | API, notebook |
-| [Streaming](docs/decisoes-tecnicas.md#d13-sem-streaming-de-texto) | Só eventos de progresso | A guarda precisa do texto completo | Streaming de tokens |
-| [Avaliação](docs/decisoes-tecnicas.md#d14-avaliação) | Golden determinístico, 3 execuções | Passar *sempre* importa mais que passar *uma vez* | Avaliar no olho, LLM como juiz |
-| [Prompt](docs/decisoes-tecnicas.md#d18-estratégia-de-prompt) | Curto, em seções, prefixo estável | Aproveita o cache (89% da entrada) e as garantias ficam em código | Manual inteiro no prompt |
+| [Approach](docs/technical-decisions.md#d1-the-approach-function-calling-with-deterministic-tools) | Function calling with deterministic tools | Small, structured data with arithmetic rules: exact lookup, not similarity | RAG, whole context, text-to-SQL, multi-agent |
+| [Orchestration](docs/technical-decisions.md#d3-turn-orchestration-from-a-hand-written-loop-to-langgraph) | LangGraph graph | The flow gained branches (router, retry, fallback); each branch became an edge. It was a hand-written loop at first | Hand-written loop, LangChain, PydanticAI |
+| [Model](docs/technical-decisions.md#d4-model-and-provider) | OpenAI `gpt-4.1-mini`, behind the `LLMClient` contract | Measured: 35 of 37 on the golden set, 1.7 s, about US$ 0.0017 per turn | A larger model, local, another provider |
+| [Data](docs/technical-decisions.md#d5-data-handling) | Intact CSVs, immutable objects, `Decimal` | Money cannot be `float`; the numbers of the manual come from a JSON with a hash | pandas, SQL database |
+| [Policies](docs/technical-decisions.md#d6-policy-lookup-without-embeddings) | `search_policy` by topic, literal text | Deterministic routing, visible in the trace | Embeddings, manual in the prompt |
+| [Anti-hallucination](docs/technical-decisions.md#d7-the-grounding-guard) | Ledger of values, deterministic | A cheap check, identical in every run | LLM as a judge |
+| [Scope](docs/technical-decisions.md#d8-the-scope-router-before-the-model) | Rules before the model | Cheaper and does not depend on the model obeying | LLM classifier |
+| [Identity](docs/technical-decisions.md#d9-customer-identity) | Order plus a proof, in code | The order number is sequential, so it proves nothing | Let the model decide |
+| [History](docs/technical-decisions.md#d10-history-persistence) | SQLite with no personal data, 30 days | Resume without keeping who the person is | JSON, history per customer |
+| [Interface](docs/technical-decisions.md#d12-interface) | CLI and Streamlit, a single command | The focus is the agent, and the evaluator needs to see and test | API, notebook |
+| [Streaming](docs/technical-decisions.md#d13-no-text-streaming) | Only progress events | The guard needs the full text | Token streaming |
+| [Evaluation](docs/technical-decisions.md#d14-evaluation) | Deterministic golden set, 3 runs | Passing *always* matters more than passing *once* | Evaluate by eye, LLM as a judge |
+| [Prompt](docs/technical-decisions.md#d18-prompt-strategy) | Short, in sections, stable prefix | It uses the cache (89% of the input) and the guarantees stay in code | The whole manual in the prompt |
 
-O que não usamos, e por quê: embeddings e banco vetorial, LangChain, LiteLLM, pandas, banco SQL para os
-dados, Redis, FastAPI, Docker, MCP, multiagente, *fine-tuning*, LLM como juiz e streaming de tokens. Cada um
-tem a razão e o momento em que passaria a fazer sentido na
-[tabela do anexo](docs/decisoes-tecnicas.md#anexo-tecnologias-que-não-usamos-e-quando-passariam-a-fazer-sentido).
+What we do not use, and why: embeddings and a vector database, LangChain, LiteLLM, pandas, a SQL database
+for the data, Redis, FastAPI, Docker, MCP, multi-agent, *fine-tuning*, LLM as a judge and token streaming.
+Each one has its reason and the moment when it would start to make sense in the
+[annex table](docs/technical-decisions.md#annex-technologies-we-do-not-use-and-when-they-would-start-to-make-sense).
 
-## 7. Testes e avaliação
-
-```mermaid
-flowchart LR
-    T1["864 testes: sem rede e sem chave, 90% de cobertura, no CI"] --> T2["Golden: 37 casos x 3 execuções, com o modelo real"]
-    T2 --> T3["Testes de estresse: perguntas novas, todas as respostas lidas"]
-    T3 --> T4["Métricas no LangSmith"]
-```
-
-- 864 testes passam em cerca de 25 s, sem rede e sem chave (o modelo é um *fake* roteirizado), com 90% de
-  cobertura. O CI roda lint, tipos estritos, testes, varredura de segredos e o padrão dos commits.
-- Golden de 37 casos derivado dos dados (nenhum valor digitado à mão), executado 3 vezes por caso, com
-  verificações determinísticas. Última rodada: 35 de 37, com regressão em 28 de 29. Latência mediana de
-  1,7 s.
-- Três testes de estresse com perguntas novas, lendo todas as respostas: cerca de 10% das conversas
-  ainda tinham algum problema real, e as defesas novas criaram defeitos menores. Está tudo documentado, com
-  os números, em [docs/avaliacao.md](docs/avaliacao.md).
-
-As duas falhas do golden: G12 (frete para outra cidade) escolhe a ferramenta errada em 1 de 3
-execuções, e a guarda a barra, então o cliente recebe a resposta segura; G30 (entrega aos sábados) infere
-"de segunda a sexta" de "dias úteis", sem o manual afirmar isso.
-
-## 8. Premissas assumidas
-
-O desafio diz para assumir uma interpretação razoável quando algo é ambíguo e documentá-la. As principais:
-
-- O status do produto manda sobre o estoque: descontinuado e "em breve" nunca são vendidos, mesmo com estoque.
-- Uma promoção só vale se estiver ativa e o produto também (o CSV não tem datas); com várias, vale a
-  maior, sem somar; o PIX não acumula com promoção.
-- O manual se contradiz em alguns pontos (telefone e WhatsApp, e-mail, parcela mínima): cada decisão está
-  registrada e é usada sempre da mesma forma.
-- A loja não registra a data real de recebimento: a previsão de entrega serve de aproximação, o agente
-  avisa isso, e a data informada pelo cliente tem precedência.
-- Identidade = número do pedido mais o e-mail ou os 4 últimos dígitos do telefone, porque os dados não
-  têm outro identificador.
-- O relógio de demonstração é 23/03/2026 (segunda-feira, 10:00), porque os dados são de 2025 e 2026.
-- Reclamações são gravadas localmente; o envio à gerência é simulado.
-
-A lista completa, com o motivo de cada uma, está em
-[docs/dados-e-politicas.md](docs/dados-e-politicas.md#9-suposições-assumidas).
-
-## 9. Limitações conhecidas
-
-O que mais pesa:
-
-- O G12 e o G30 falham em parte, as defesas criaram quatro regressões (medidas, ainda não corrigidas) e
-  cerca de 10% das conversas de estresse tinham algum problema.
-- Só existe o adaptador da OpenAI, e nenhum outro modelo foi comparado.
-- A identidade é de um fator só. O e-mail de alguém não é segredo, e esse é o ponto mais fraco em segurança.
-- A guarda cobre valores, percentuais, parcelas e rastreio, mas não prazos em dias, datas nem estoque.
-- Os dados são estáticos, as promoções não têm vigência e a data de recebimento é aproximada.
-- Não há canal real (API HTTP, WhatsApp), e a reclamação é simulada.
-- Tudo roda numa máquina: SQLite local, bloqueio de identidade em memória, sem Docker nem deploy.
-- O que o cliente digita vai à OpenAI e ao LangSmith. O aviso existe na CLI, mas ainda falta na interface web.
-- Windows e macOS não foram testados; o desenvolvimento foi em Linux.
-
-A lista completa, por área e com o impacto de cada ponto, está em
-[docs/limitacoes-e-evolucao.md](docs/limitacoes-e-evolucao.md#1-limitações-conhecidas).
-
-## 10. O que faria com mais tempo
+## 7. Tests and evaluation
 
 ```mermaid
 flowchart LR
-    A["Fase 1: endurecer"] --> B["Fase 2: canal e estado"] --> C["Fase 3: operar"]
-    A -.- A1["Verificação em níveis, G12 e G30, golden independente, comparar modelos"]
-    B -.- B1["API, WhatsApp, Postgres, Redis, Docker, dados do ERP, atendente humano"]
-    C -.- C1["Canário de prompt, alertas, revisão do golden com conversas reais, LGPD completa"]
+    T1["864 tests: no network and no key, 90% coverage, in the CI"] --> T2["Golden set: 37 cases x 3 runs, with the real model"]
+    T2 --> T3["Stress tests: new questions, all answers read"]
+    T3 --> T4["Metrics in LangSmith"]
 ```
 
-Em ordem de valor por esforço:
+- 864 tests pass in about 25 s, without network and without a key (the model is a scripted *fake*), with 90%
+  coverage. The CI runs lint, strict types, tests, a secrets scan and the commit standard.
+- A golden set of 37 cases derived from the data (no value typed by hand), run 3 times per case, with
+  deterministic checks. Last round: 35 of 37, with regression at 28 of 29. Median latency of 1.7 s.
+- Three stress tests with new questions, reading all the answers: about 10% of the conversations still
+  had some real problem, and the new defenses created minor defects. Everything is documented, with the
+  numbers, in [docs/evaluation.md](docs/evaluation.md).
 
-1. Verificação de identidade em níveis (e depois código de uso único).
-2. Fechar o G12 e o G30 e as regressões que as defesas criaram.
-3. Golden maior e escrito por outra pessoa, com mais execuções por caso, e comparar modelos (um menor,
-   um maior e um local) no mesmo golden.
-4. API HTTP e canal WhatsApp, com PostgreSQL e Redis, e dados vindos do sistema da loja.
-5. Contêiner, homologação, canário e rollback de prompt, aproveitando que cada turno já leva o hash dele.
-6. Atendente humano de verdade para onde o agente encaminha.
+The two failures of the golden set: G12 (shipping to another city) chooses the wrong tool in 1 of 3 runs,
+and the guard blocks it, so the customer receives the safe answer; G30 (delivery on Saturdays) infers
+"Monday to Friday" from "business days", without the manual stating it.
 
-O plano completo até a produção, com a arquitetura alvo, custo, escala, operação e um checklist, está em
-[docs/limitacoes-e-evolucao.md](docs/limitacoes-e-evolucao.md#3-rumo-à-produção-a-arquitetura-alvo).
+## 8. Assumptions made
 
-## 11. Uso de assistentes de código
+The challenge says to assume a reasonable interpretation when something is ambiguous and to document it. The
+main ones:
 
-A ideia e as decisões são minhas. Usei o **Claude Code** (Anthropic) como **avaliador e revisor do código e
-como auxiliar na escrita**: ele não escreveu o projeto sozinho, e eu também não o escrevi sem ele. Ele
-revisou e avaliou o que eu fazia, apontou problemas e riscos, sugeriu melhorias e me ajudou a escrever
-trechos. Também o usei para **pesquisar e reunir informações**, **relacioná-las ao problema da loja** e
-como interlocutor para **raciocinar sobre a orquestração do agente e o planejamento do projeto**. **Também usei o NotebookLM**
-(Google) para **ler papers, artigos e documentações**, tirar dúvidas e **encontrar conexões** entre as
-fontes, o que me ajudou a planejar **o que fazer, quando fazer e como fazer** com as tecnologias que eu
-escolhi.
+- The product status takes precedence over stock: discontinued and "coming soon" are never sold, even with
+  stock.
+- A promotion only counts if it is active and the product is too (the CSV has no dates); with several, the
+  largest applies, with no stacking; PIX does not stack with a promotion.
+- The manual contradicts itself in a few points (phone and WhatsApp, e-mail, minimum installment): each
+  decision is recorded and always used the same way.
+- The store does not record the real receipt date: the delivery estimate serves as an approximation, the
+  agent warns about it, and the date given by the customer takes precedence.
+- Identity = order number plus the e-mail or the last 4 digits of the phone, because the data has no other
+  identifier.
+- The demo clock is 23/03/2026 (Monday, 10:00), because the data is from 2025 and 2026.
+- Complaints are stored locally: the forwarding to management is simulated.
 
-O ponto de partida de cada etapa veio de mim; eu defini o escopo, **escolhi as tecnologias e as
-alternativas**, **escrevi e revisei o código**, os testes e os evals com o auxílio do Claude Code, e
-controlo o repositório: **branches, commits e
-pull requests são feitos por mim**.
+The full list, with the reason for each, is in
+[docs/data-and-policies.md](docs/data-and-policies.md#9-assumptions-made).
 
-O fluxo foi: planejar antes de codar, pesquisar com a data registrada (e estudar as fontes no NotebookLM),
-decidir, implementar em pequenos passos com testes, **medir com o modelo real**, analisar a causa de cada falha
-e só então commitar.
-O que vinha da IA era ponto de partida, não verdade: foi reconferido na fonte e, nas decisões que importam,
-decidido com **medidas do próprio projeto** (o golden, os testes de estresse com todas as respostas lidas e o
-CI). Detalhes, incluindo onde a IA não bastou, em [docs/uso-de-ia.md](docs/uso-de-ia.md).
+## 9. Known limitations
 
-## 12. Estrutura do projeto
+What weighs the most:
+
+- G12 and G30 fail in part, the defenses created four regressions (measured, not yet fixed) and about 10% of
+  the stress conversations had some problem.
+- Only the OpenAI adapter exists, and no other model was compared.
+- Identity is single-factor. Someone's e-mail is not a secret, and this is the weakest point in security.
+- The guard covers values, percentages, installments and tracking, but not deadlines in days, dates or stock.
+- The data is static, the promotions have no validity and the receipt date is approximate.
+- There is no real channel (HTTP API, WhatsApp), and the complaint is simulated.
+- Everything runs on one machine: local SQLite, in-memory identity lockout, no Docker and no deploy.
+- What the customer types goes to OpenAI and LangSmith. The notice exists in the CLI, but is still missing
+  in the web interface.
+- Windows and macOS were not tested; development was on Linux.
+
+The full list, by area and with the impact of each point, is in
+[docs/limitations-and-evolution.md](docs/limitations-and-evolution.md#1-known-limitations).
+
+## 10. What I would do with more time
+
+```mermaid
+flowchart LR
+    A["Phase 1: harden"] --> B["Phase 2: channel and state"] --> C["Phase 3: operate"]
+    A -.- A1["Tiered verification, G12 and G30, independent golden set, compare models"]
+    B -.- B1["API, WhatsApp, Postgres, Redis, Docker, ERP data, human agent"]
+    C -.- C1["Prompt canary, alerts, golden set review with real conversations, full LGPD"]
+```
+
+In order of value per effort:
+
+1. Tiered identity verification (and later a one-time code).
+2. Close G12 and G30 and the regressions the defenses created.
+3. A bigger golden set written by someone else, with more runs per case, and compare models (a smaller one,
+   a bigger one and a local one) on the same golden set.
+4. HTTP API and WhatsApp channel, with PostgreSQL and Redis, and data coming from the store's system.
+5. Container, staging, canary and prompt rollback, taking advantage of the fact that each turn already
+   carries its hash.
+6. A real human agent for where the assistant hands over.
+
+The full plan to production, with the target architecture, cost, scale, operation and a checklist, is in
+[docs/limitations-and-evolution.md](docs/limitations-and-evolution.md#3-towards-production-the-target-architecture).
+
+## 11. Use of coding assistants
+
+The idea and the decisions are mine. I used **Claude Code** (Anthropic) as an **evaluator and reviewer of
+the code and as a writing aid**: it did not write the project alone, and I did not write it without it
+either. It reviewed and evaluated what I was doing, pointed out problems and risks, suggested improvements
+and helped me write parts. I also used it to **research and gather information**, to **relate it to the
+store's problem** and as a counterpart to **reason about the agent's orchestration and the planning of the
+project**. **I also used NotebookLM** (Google) to **read papers, articles and documentation**, ask questions
+and **find connections** between the sources, which helped me plan **what to do, when to do it and how** with
+the technologies I chose.
+
+The starting point of each stage came from me; I defined the scope, **chose the technologies and the
+alternatives**, **wrote and reviewed the code**, the tests and the evals with the help of Claude Code, and I
+control the repository: **branches, commits and pull requests are made by me**.
+
+The flow was: plan before coding, research with the date recorded (and study the sources in NotebookLM),
+decide, implement in small steps with tests, **measure with the real model**, analyze the cause of each
+failure and only then commit. What came from the AI was a starting point, not truth: it was rechecked at
+the source and, in the decisions that matter, decided with **measurements from the project itself** (the
+golden set, the stress tests with all the answers read and the CI). Details, including where the AI was not
+enough, in [docs/ai-usage.md](docs/ai-usage.md).
+
+## 12. Project structure
 
 ```
 .
 ├── src/emporio/
-│   ├── agent/          # o turno: grafo, guarda, roteador, filtros, portão, estado, sessão
-│   ├── tools/          # as 11 ferramentas e o registro que as valida
-│   ├── domain/         # regras puras: preço, horário, devolução, frete, disponibilidade
-│   ├── data/           # carga dos CSVs, busca de produtos, manual de políticas, qualidade
-│   ├── llm/            # contrato LLMClient, cliente OpenAI, gravação e replay
-│   ├── cli/            # a linha de comando
-│   ├── web/            # a interface Streamlit: chat, exemplos, resultados, métricas
-│   ├── prompts/        # system.md: o prompt do Téo
-│   ├── identity.py     # verificação do cliente e bloqueio
-│   ├── privacy.py      # redação de dados pessoais
-│   ├── observability.py# tracing no LangSmith que nunca derruba o atendimento
-│   └── app.py          # a fiação: monta o agente com as ferramentas reais
+│   ├── agent/          # the turn: graph, guard, router, filters, gate, state, session
+│   ├── tools/          # the 11 tools and the registry that validates them
+│   ├── domain/         # pure rules: price, opening hours, return, shipping, availability
+│   ├── data/           # CSV loading, product search, policy manual, quality
+│   ├── llm/            # LLMClient contract, OpenAI client, recording and replay
+│   ├── cli/            # the command line
+│   ├── web/            # the Streamlit interface: chat, examples, results, metrics
+│   ├── prompts/        # system.md: Téo's prompt
+│   ├── identity.py     # customer verification and lockout
+│   ├── privacy.py      # personal data redaction
+│   ├── observability.py# LangSmith tracing that never takes the service down
+│   └── app.py          # the wiring: assembles the agent with the real tools
 ├── data/
-│   ├── raw/            # os CSVs e o PDF do desafio, intactos
-│   ├── policies.md     # o manual extraído, uma seção por capítulo
-│   ├── policy_rules.json   # os números do manual, com o hash do texto
-│   └── policies_notes.json # decisões sobre as contradições do manual
-├── examples/conversations/  # as 5 conversas de exemplo (.md e .json)
-├── evals/              # golden.yaml, execução, relatórios e a foto das métricas
-├── tests/              # 864 testes: unit, integration, contract, evals, live
-├── scripts/            # extração do manual, spike, gravar exemplos, exportar métricas
-├── docs/               # a documentação completa
+│   ├── raw/            # the challenge's CSVs and PDF, intact
+│   ├── policies.md     # the extracted manual, one section per chapter
+│   ├── policy_rules.json   # the numbers of the manual, with the hash of the text
+│   └── policies_notes.json # decisions about the contradictions in the manual
+├── examples/conversations/  # the 5 example conversations (.md and .json)
+├── evals/              # golden.yaml, runner, reports and the metrics snapshot
+├── tests/              # 864 tests: unit, integration, contract, evals, live
+├── scripts/            # manual extraction, spike, record examples, export metrics
+├── docs/               # the full documentation
 ├── .github/workflows/  # CI
 ├── Makefile
 └── pyproject.toml
 ```
 
-## 13. Documentação completa
+## 13. Full documentation
 
-| Documento | O que explica |
+| Document | What it explains |
 |---|---|
-| [docs/arquitetura.md](docs/arquitetura.md) | Camadas, o fluxo de um turno, as 11 ferramentas, as defesas, o estado e a persistência, observabilidade |
-| [docs/decisoes-tecnicas.md](docs/decisoes-tecnicas.md) | Cada decisão, as alternativas descartadas e por quê, e as tecnologias que não usamos |
-| [docs/dados-e-politicas.md](docs/dados-e-politicas.md) | Os dados, as inconsistências, as contradições do manual e as regras de negócio |
-| [docs/seguranca-e-privacidade.md](docs/seguranca-e-privacidade.md) | Modelo de ameaças, identidade, injeção de prompt, dados pessoais e LGPD |
-| [docs/avaliacao.md](docs/avaliacao.md) | Testes, golden, rodadas, testes de estresse, métricas e o que as falhas ensinaram |
-| [docs/limitacoes-e-evolucao.md](docs/limitacoes-e-evolucao.md) | Limitações, o que faria com mais tempo e o caminho até a produção |
-| [docs/uso-de-ia.md](docs/uso-de-ia.md) | Como o Claude Code (revisor do código e auxiliar na escrita) e o NotebookLM apoiaram o trabalho, e quem fez o quê |
-| [evals/README.md](evals/README.md) | Como rodar e ler as avaliações |
-| [data/README.md](data/README.md) | Os dados e a proteção contra deriva do manual |
+| [docs/architecture.md](docs/architecture.md) | Layers, the flow of a turn, the 11 tools, the defenses, state and persistence, observability |
+| [docs/technical-decisions.md](docs/technical-decisions.md) | Each decision, the discarded alternatives and why, and the technologies we do not use |
+| [docs/data-and-policies.md](docs/data-and-policies.md) | The data, the inconsistencies, the contradictions in the manual and the business rules |
+| [docs/security-and-privacy.md](docs/security-and-privacy.md) | Threat model, identity, prompt injection, personal data and LGPD |
+| [docs/evaluation.md](docs/evaluation.md) | Tests, golden set, rounds, stress tests, metrics and what the failures taught |
+| [docs/limitations-and-evolution.md](docs/limitations-and-evolution.md) | Limitations, what I would do with more time and the path to production |
+| [docs/ai-usage.md](docs/ai-usage.md) | How Claude Code (code reviewer and writing aid) and NotebookLM supported the work, and who did what |
+| [evals/README.md](evals/README.md) | How to run and read the evaluations |
+| [data/README.md](data/README.md) | The data and the protection against drift in the manual |
 
-## Licença
+## License
 
 [MIT](LICENSE), © 2026 Eric da Costa.

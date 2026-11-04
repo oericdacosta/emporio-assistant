@@ -52,5 +52,9 @@
       "guard_blocked": false,
       "fallback": false
     }
-  ]
+  ],
+  "number": 3,
+  "title_en": "Return by regret, from the general rule to the order deadline",
+  "scenario_en": "Non-trivial case. The customer first asks about returns in general, with no order, and then gives an order and the delivery date.",
+  "hood_en": "The first turn consults the policy (`search_policy`) for the general rule and asks for the order and a proof of identity. When the customer provides both, the orchestrator runs `verify_customer` and `check_return_eligibility` with `reason=\"regret\"` and the received date the customer gave. The 7-day deadline is computed in code, against that date. The model only words the verdict, so it cannot miscount days."
 }

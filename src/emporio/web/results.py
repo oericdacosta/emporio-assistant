@@ -34,21 +34,21 @@ def load_snapshot(path: Path | None = None) -> dict[str, Any] | None:
 def results_tab() -> None:
     snapshot = load_snapshot()
     if snapshot is None:
-        st.info("Ainda não há resultados exportados em evals/reports/metrics_snapshot.json.")
+        st.info("There are no exported results yet in evals/reports/metrics_snapshot.json.")
         return
     period = [metrics.row_from_json(t) for t in snapshot["turns"]]
     if not period:
-        st.info("A foto exportada não tem turnos.")
+        st.info("The exported snapshot has no turns.")
         return
     st.info(
-        "Estes são os resultados medidos pelo autor do projeto, exportados do LangSmith dele em "
-        f"{snapshot.get('exported_on', '?')} e salvos no repositório. Quem baixar o projeto vê "
-        "os mesmos números, sem precisar de chave. Para ver as métricas das suas próprias "
-        "conversas, ative o modo avaliador e abra a aba Métricas."
+        "These are the results measured by the author of the project, exported from their LangSmith on "
+        f"{snapshot.get('exported_on', '?')} and saved in the repository. Whoever downloads the project sees "
+        "the same numbers, with no key needed. To see the metrics of your own "
+        "conversations, turn on evaluator mode and open the Metrics tab."
     )
     summary_section(
         period,
-        f"Todos os {len(period)} turnos do projeto de testes: conversas de desenvolvimento, "
-        "testes de estresse e exemplos.",
+        f"All {len(period)} turns of the test project: development conversations, "
+        "stress tests and examples.",
         full=False,
     )

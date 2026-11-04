@@ -31,7 +31,7 @@ SELECT: Final = (
     "total_cost",
     "feedback_stats",
 )
-NO_VERSION: Final = "sem versão"
+NO_VERSION: Final = "no version"
 
 
 def _default_client() -> Any:
@@ -97,7 +97,7 @@ def turn_row(run: Any) -> TurnRow:
     cost = getattr(run, "total_cost", None)
     return TurnRow(
         started=run.start_time,
-        outcome="erro" if failed else str(meta.get("outcome", "?")),
+        outcome="error" if failed else str(meta.get("outcome", "?")),
         latency_s=_latency(run),
         input_tokens=int(meta.get("input_tokens", getattr(run, "prompt_tokens", 0) or 0)),
         output_tokens=int(meta.get("output_tokens", getattr(run, "completion_tokens", 0) or 0)),
@@ -162,13 +162,13 @@ def aggregates(turns: list[TurnRow]) -> Aggregates:
 
 
 def fmt_seconds(value: float | None) -> str:
-    """``2,6 s``: vírgula decimal, como o resto da tela."""
-    return "-" if value is None else f"{value:.1f}".replace(".", ",") + " s"
+    """``2.6 s``: one decimal place."""
+    return "-" if value is None else f"{value:.1f} s"
 
 
 def fmt_usd(value: float | None) -> str:
-    """``US$ 0,0069``: custos de um turno são frações de centavo, então quatro casas."""
-    return "-" if value is None else "US$ " + f"{value:.4f}".replace(".", ",")
+    """``$0.0069``: the cost of a turn is a fraction of a cent, so four decimal places."""
+    return "-" if value is None else f"${value:.4f}"
 
 
 def fmt_pct(value: float | None) -> str:
@@ -176,8 +176,8 @@ def fmt_pct(value: float | None) -> str:
 
 
 def fmt_num(value: float | None) -> str:
-    """``1,4``: uma casa, vírgula decimal."""
-    return "-" if value is None else f"{value:.1f}".replace(".", ",")
+    """``1.4``: one decimal place."""
+    return "-" if value is None else f"{value:.1f}"
 
 
 def _rate(count: float, total: float) -> float | None:
@@ -216,13 +216,13 @@ def by_tool(turns: list[TurnRow]) -> list[dict[str, Any]]:
     lines = [
         {
             "tool": name,
-            "chamadas": n,
-            "erros": errors[name],
-            "taxa de erro": fmt_pct(_rate(errors[name], n)),
+            "calls": n,
+            "errors": errors[name],
+            "error rate": fmt_pct(_rate(errors[name], n)),
         }
         for name, n in calls.items()
     ]
-    return sorted(lines, key=lambda line: (-line["erros"], -line["chamadas"], line["tool"]))
+    return sorted(lines, key=lambda line: (-line["errors"], -line["calls"], line["tool"]))
 
 
 def by_prompt(turns: list[TurnRow]) -> list[dict[str, Any]]:
@@ -238,14 +238,14 @@ def by_prompt(turns: list[TurnRow]) -> list[dict[str, Any]]:
         costs = [t.cost for t in group if t.cost is not None]
         lines.append(
             {
-                "versão do prompt": version,
-                "turnos": len(group),
-                "tempo mediano": fmt_seconds(percentile(latencies, 0.5)),
-                "custo por turno": fmt_usd(_rate(sum(costs), len(group)) if costs else None),
-                "corrigidas pela guarda": fmt_pct(
+                "prompt version": version,
+                "turns": len(group),
+                "median time": fmt_seconds(percentile(latencies, 0.5)),
+                "cost per turn": fmt_usd(_rate(sum(costs), len(group)) if costs else None),
+                "fixed by the guard": fmt_pct(
                     _rate(sum(t.outcome == "corrected" for t in group), len(group))
                 ),
-                "resposta segura": fmt_pct(
+                "safe answer": fmt_pct(
                     _rate(sum(t.outcome == "fallback" for t in group), len(group))
                 ),
             }
@@ -261,17 +261,17 @@ def table(turns: list[TurnRow]) -> list[dict[str, Any]]:
     """Uma linha por turno, com os rótulos da tela."""
     return [
         {
-            "hora": t.started.astimezone().strftime("%H:%M:%S"),
-            "desfecho": t.outcome,
-            "latência (s)": round(t.latency_s, 2) if t.latency_s is not None else None,
-            "tokens entrada": t.input_tokens,
-            "tokens saída": t.output_tokens,
-            "tokens cache": t.cached_tokens,
-            "custo (US$)": round(t.cost, 5) if t.cost is not None else None,
+            "time": t.started.astimezone().strftime("%H:%M:%S"),
+            "outcome": t.outcome,
+            "latency (s)": round(t.latency_s, 2) if t.latency_s is not None else None,
+            "input tokens": t.input_tokens,
+            "output tokens": t.output_tokens,
+            "cache tokens": t.cached_tokens,
+            "cost (US$)": round(t.cost, 5) if t.cost is not None else None,
             "tools": ", ".join(t.tools) or "-",
-            "guarda barrou": t.guard_blocked,
-            "erros de tool": ", ".join(t.tool_errors) or "-",
-            "versão do prompt": t.prompt_hash,
+            "guard blocked": t.guard_blocked,
+            "tool errors": ", ".join(t.tool_errors) or "-",
+            "prompt version": t.prompt_hash,
             "trace": t.trace_id,
         }
         for t in turns

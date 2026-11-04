@@ -42,5 +42,9 @@
       "guard_blocked": false,
       "fallback": false
     }
-  ]
+  ],
+  "number": 4,
+  "title_en": "Defective product: the store rule and a complaint protocol",
+  "scenario_en": "Non-trivial case. A customer reports a defect, does not have the order number at hand and asks the store to call.",
+  "hood_en": "`search_policy` brings the defect rule (exchange within 30 days of the purchase), and the assistant opens with empathy before asking for the order. Since the customer cannot give the order, the assistant registers the case with `register_complaint` and a phone contact, and answers with the protocol and the 24 business hours return time, which come from the tool result. The complaint is stored locally and the forwarding to management is simulated."
 }

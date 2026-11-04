@@ -20,19 +20,19 @@ def test_parse_clock() -> None:
     assert isinstance(logic.parse_clock(None), SystemClock)
     assert isinstance(logic.parse_clock(""), SystemClock)
     assert logic.parse_clock("2026-03-23T10:00").now().hour == 10
-    with pytest.raises(ConfigError, match="inválida") as info:
-        logic.parse_clock("ontem")
+    with pytest.raises(ConfigError, match="Invalid") as info:
+        logic.parse_clock("yesterday")
     assert "--" not in str(info.value)
 
 
 def test_friendly_error() -> None:
-    assert "Data" in logic.friendly_error(ConfigError("Data ou hora inválida"))
-    assert "dados da loja" in logic.friendly_error(DataLoadError("x"))
+    assert "Invalid" in logic.friendly_error(ConfigError("Invalid date or time"))
+    assert "store data" in logic.friendly_error(DataLoadError("x"))
     unavailable = logic.friendly_error(ProviderUnavailable("boom"))
-    assert "Turno não gravado" in unavailable
+    assert "Turn not saved" in unavailable
     fatal = logic.friendly_error(ProviderFatal("chave sk-abcdefghijklmnopqrstuvwxyz0123"))
-    assert "sk-abcdefghij" not in fatal and "chave" in fatal
-    assert "Turno não gravado" in logic.friendly_error(RuntimeError("segredo"))
+    assert "sk-abcdefghij" not in fatal and "key" in fatal
+    assert "Turn not saved" in logic.friendly_error(RuntimeError("segredo"))
     assert "segredo" not in logic.friendly_error(RuntimeError("segredo"))
     for error in (ConfigError("x"), ProviderFatal("x"), ProviderUnavailable("x"), ValueError()):
         assert "--" not in logic.friendly_error(error)
@@ -103,7 +103,7 @@ def make_runtime(
 
 
 def test_build_runtime_requires_model_and_key(repo: CsvRepository, policies: PolicyStore) -> None:
-    with pytest.raises(ConfigError, match="barra lateral"):
+    with pytest.raises(ConfigError, match="sidebar"):
         logic.build_runtime(
             model="",
             api_key="",
@@ -130,7 +130,7 @@ def test_successful_turn_is_saved(make_runtime, tmp_path: Path) -> None:  # type
 def test_failed_turn_is_not_saved(make_runtime, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
     runtime = make_runtime(FakeLLM(ProviderUnavailable("rede"), say("Abrimos às 9h.")))
     reply = logic.run_one_turn(runtime, "oi", None)
-    assert reply.kind == "error" and not reply.saved and "Turno não gravado" in reply.text
+    assert reply.kind == "error" and not reply.saved and "Turn not saved" in reply.text
     assert runtime.session.history == []
     assert logic.list_sessions(str(tmp_path / "h.db")) == []
 

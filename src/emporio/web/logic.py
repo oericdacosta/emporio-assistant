@@ -17,11 +17,11 @@ from emporio.agent.graph import Agent
 from emporio.agent.session import Session, SQLiteSessionStore, new_session_id
 from emporio.agent.types import Event, ToolFinished, TurnResult
 from emporio.app import build_agent
-from emporio.cli.text import UNEXPECTED_MESSAGE, format_moment, scrub, summarize
+from emporio.cli.text import scrub, summarize
 from emporio.clock import Clock, FixedClock, SystemClock
 from emporio.data.policies import PolicyStore
 from emporio.data.repository import CsvRepository, DataLoadError
-from emporio.errors import ConfigError, LLMError
+from emporio.errors import ConfigError, LLMError, ProviderUnavailable
 from emporio.identity import IdentityVerifier
 from emporio.llm.base import LLMClient
 from emporio.llm.factory import make_llm
@@ -32,13 +32,15 @@ make_llm_for_ui: Callable[[str | None, Mapping[str, str]], LLMClient] = make_llm
 
 DEMO_NOW: Final = "2026-03-23T10:00"
 IN_MEMORY: Final = ":memory:"
-NOT_SAVED: Final = "Turno não gravado; pode reenviar a mensagem."
+NOT_SAVED: Final = "Turn not saved; you can resend the message."
 EXAMPLES: Final = (
     "Quais violões até R$ 1000?",
     "Quanto custa o Takamine GD20?",
     "Que horas a loja abre?",
     "Quero devolver um pedido",
 )
+
+WEEKDAYS: Final = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
 Kind = Literal["answer", "fallback", "error"]
 
@@ -51,7 +53,7 @@ def parse_clock(text: str | None) -> Clock:
         return FixedClock.parse(text)
     except ValueError as error:
         raise ConfigError(
-            f"Data ou hora inválida: {text!r}. Use o formato 2026-03-23T10:00."
+            f"Invalid date or time: {text!r}. Use the format 2026-03-23T10:00."
         ) from error
 
 
@@ -99,8 +101,8 @@ def build_runtime(
 ) -> Runtime:
     if not model.strip() or not api_key.strip():
         raise ConfigError(
-            "Para conversar, informe o modelo e a chave da OpenAI na barra lateral "
-            "(ou deixe-os no arquivo .env)."
+            "To chat, provide the model and the OpenAI key in the sidebar "
+            "(or leave them in the .env file)."
         )
     llm = make_llm_for_ui(model.strip(), {"OPENAI_API_KEY": api_key.strip()})
     agent = build_agent(llm, repo=repo, clock=clock, policies=policies, identity=identity)
@@ -198,20 +200,25 @@ def turn_details(result: TurnResult, finished: list[ToolFinished]) -> dict[str, 
 
 
 def friendly_error(error: BaseException) -> str:
-    """Mensagem em português, sem jargão, sem nomes de flag e sem pedaços de chave."""
+    """A plain-English message for the screen, without jargon, flag names or pieces of a key."""
     if isinstance(error, ConfigError):
         return scrub(str(error), 300)
     if isinstance(error, DataLoadError):
-        return f"Não consegui carregar os dados da loja: {scrub(str(error), 300)}"
+        return f"Could not load the store data: {scrub(str(error), 300)}"
     if isinstance(error, LLMError):
         failure = describe(error)
         if failure.misconfigured:
             return (
-                f"A OpenAI recusou a requisição ({scrub(str(error))}). "
-                "Confira a chave e o modelo na barra lateral."
+                f"OpenAI refused the request ({scrub(str(error))}). "
+                "Check the key and the model in the sidebar."
             )
-        return f"{failure.message} {NOT_SAVED}"
-    return f"{UNEXPECTED_MESSAGE} {NOT_SAVED}"
+        message = (
+            "OpenAI is receiving too many requests right now. Try again in a moment."
+            if failure.retryable and isinstance(error, ProviderUnavailable) and error.rate_limited
+            else "The model provider is unstable at the moment. Try again in a moment."
+        )
+        return f"{message} {NOT_SAVED}"
+    return f"Something went wrong. {NOT_SAVED}"
 
 
 def run_one_turn(
@@ -242,5 +249,6 @@ def run_one_turn(
 
 
 def clock_label(clock: Clock) -> str:
-    suffix = "relógio real" if isinstance(clock, SystemClock) else "data de demonstração"
-    return f"{format_moment(clock.now())} ({suffix})"
+    suffix = "real clock" if isinstance(clock, SystemClock) else "demo date"
+    now = clock.now()
+    return f"{WEEKDAYS[now.weekday()]}, {now:%Y-%m-%d %H:%M} ({suffix})"

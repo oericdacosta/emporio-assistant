@@ -55,5 +55,9 @@
       "guard_blocked": false,
       "fallback": false
     }
-  ]
+  ],
+  "number": 5,
+  "title_en": "Order status with identity verification",
+  "scenario_en": "Non-trivial case. The customer asks where the order is. The first proof is wrong, then corrected.",
+  "hood_en": "Order data is only released after `verify_customer` succeeds, with the order number plus an e-mail or the last 4 digits of the phone, checked in code. With the wrong e-mail the assistant says only that it could not confirm the data, without revealing whether the order exists or what failed. After the correct proof, `get_order_status` returns the status and the tracking code, and the customer's first name comes from the verified record."
 }
